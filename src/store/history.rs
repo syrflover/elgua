@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
-use sqlx::{postgres::PgQueryResult, PgPool};
+use sqlx::{postgres::PgQueryResult, PgPool, Row};
 
+#[derive(Debug, Clone, Copy)]
 pub enum HistoryKind {
     YouTube,
     SoundCloud,
@@ -27,12 +28,27 @@ impl HistoryKind {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct History {
+    pub id: u64,
     pub kind: HistoryKind,
     pub url: String,
     pub user_id: u64,
     pub volume: u8,
     pub created_at: DateTime<Utc>,
+}
+
+impl From<HistoryRow> for History {
+    fn from(x: HistoryRow) -> Self {
+        Self {
+            id: x.id as u64,
+            kind: x.kind.into(),
+            url: x.url,
+            user_id: x.user_id as u64,
+            volume: x.volume as u8,
+            created_at: x.created_at,
+        }
+    }
 }
 
 pub struct HistoryStore {
@@ -61,11 +77,12 @@ impl HistoryStore {
         Self { conn }
     }
 
-    pub async fn add(&self, history: &History) -> sqlx::Result<()> {
-        let _r = sqlx::query(
+    pub async fn add(&self, history: &History) -> sqlx::Result<u64> {
+        let r = sqlx::query(
             r#"
             INSERT INTO history (kind, url, user_id, volume, created_at)
             VALUES ($1, $2, $3, $4, $5)
+            RETURNING id
             "#,
         )
         .bind(history.kind.as_str())
@@ -73,10 +90,12 @@ impl HistoryStore {
         .bind(history.user_id as i64)
         .bind(history.volume as i16)
         .bind(history.created_at)
-        .execute(&self.conn)
+        .fetch_one(&self.conn)
         .await?;
 
-        Ok(())
+        let id: i64 = r.try_get("id")?;
+
+        Ok(id as u64)
     }
 
     pub async fn get(
@@ -85,16 +104,6 @@ impl HistoryStore {
         per_page: usize,
         than: Option<Than>,
     ) -> sqlx::Result<Vec<History>> {
-        #[derive(sqlx::FromRow)]
-        struct HistoryRow {
-            // id: i64,
-            kind: String,
-            url: String,
-            user_id: i64,
-            volume: i16,
-            created_at: DateTime<Utc>,
-        }
-
         let sql = match than {
             Some(than) => {
                 let r#where = match than {
@@ -105,7 +114,7 @@ impl HistoryStore {
                     r#"
                 SELECT DISTINCT(id), kind, url, user_id, volume, created_at FROM history
                 WHERE {}
-                ORDER BY created_at ASC
+                ORDER BY created_at DESC
                 OFFSET $1
                 LIMIT $2"#,
                     r#where
@@ -114,7 +123,7 @@ impl HistoryStore {
 
             None => r#"
             SELECT DISTINCT(id), kind, url, user_id, volume, created_at FROM history
-            ORDER BY created_at ASC
+            ORDER BY created_at DESC
             OFFSET $1
             LIMIT $2
             "#
@@ -127,17 +136,60 @@ impl HistoryStore {
             .fetch_all(&self.conn)
             .await?
             .into_iter()
-            .map(|x: HistoryRow| History {
-                kind: x.kind.into(),
-                url: x.url,
-                user_id: x.user_id as u64,
-                volume: x.volume as u8,
-                created_at: x.created_at,
-            })
+            .map(|x: HistoryRow| x.into())
             .collect();
 
         Ok(histories)
     }
+
+    pub async fn find_one(
+        &self,
+        kind: HistoryKind,
+        url: impl AsRef<str>,
+    ) -> sqlx::Result<Option<History>> {
+        let sql = r#"
+            SELECT * FROM history
+            WHERE kind = $1 AND
+                  url = $2
+            ORDER BY id DESC
+            LIMIT 1
+        "#;
+
+        let history = sqlx::query_as(sql)
+            .bind(kind.as_str())
+            .bind(url.as_ref())
+            .fetch_optional(&self.conn)
+            .await?
+            .map(|x: HistoryRow| x.into());
+
+        Ok(history)
+    }
+
+    pub async fn update_volume(&self, id: u64, volume: u8) -> sqlx::Result<()> {
+        let sql = r#"
+            UPDATE history
+            SET volume = $1
+            WHERE id = $2
+        "#;
+
+        sqlx::query(sql)
+            .bind(volume as i16)
+            .bind(id as i64)
+            .execute(&self.conn)
+            .await?;
+
+        Ok(())
+    }
+}
+
+#[derive(sqlx::FromRow)]
+struct HistoryRow {
+    id: i64,
+    kind: String,
+    url: String,
+    user_id: i64,
+    volume: i16,
+    created_at: DateTime<Utc>,
 }
 
 pub enum Than {

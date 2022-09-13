@@ -22,7 +22,7 @@ use crate::ytdl;
 
 use self::volume::volume;
 
-pub struct Track(pub TrackHandle);
+pub struct Track(pub u64, pub TrackHandle);
 
 impl TypeMapKey for Track {
     type Value = Track;
@@ -78,8 +78,8 @@ async fn route_application_command(
             };
 
             let volume = match volume {
-                Some(CommandDataOptionValue::Integer(v)) => *v as f32 / 100.0,
-                None => 0.05,
+                Some(CommandDataOptionValue::Integer(v)) => Some(*v as f32 / 100.0),
+                None => None, // 0.05
                 _ => {
                     unreachable!()
                 }
@@ -112,7 +112,7 @@ async fn route_application_command(
                             .placeholder("재생할 음악을 선택해 주세요")
                             .custom_id("play-yt-select-0")
                             .options(|x| {
-                                metadata_vec.into_iter().enumerate().fold(
+                                metadata_vec.into_iter().enumerate().take(5).fold(
                                     x,
                                     |acc, (i, metadata)| {
                                         let num_emoji = match i + 1 {
@@ -126,8 +126,14 @@ async fn route_application_command(
                                         .to_string();
 
                                         let label = metadata.title.unwrap();
-                                        let value =
-                                            format!("{};{}", metadata.source_url.unwrap(), volume);
+                                        let value = match volume {
+                                            Some(volume) => format!(
+                                                "{};{}",
+                                                metadata.source_url.unwrap(),
+                                                volume
+                                            ),
+                                            None => metadata.source_url.unwrap(),
+                                        };
                                         let description = metadata.channel.unwrap();
                                         acc.create_option(|opt| {
                                             opt.label(label)
@@ -155,7 +161,7 @@ async fn route_application_command(
             let volume_ = options.get(0).unwrap().resolved.as_ref().unwrap();
 
             let volume_ = match volume_ {
-                CommandDataOptionValue::Integer(volume) => (*volume as f32) / 100.0,
+                CommandDataOptionValue::Integer(volume) => *volume as f32 / 100.0,
                 _ => unreachable!(),
             };
 
@@ -182,11 +188,11 @@ async fn route_message_component(
             };
             let user_id = command.user.id;
 
-            let (url, volume): (String, f32) = {
+            let (url, volume): (String, Option<f32>) = {
                 let mut x = command.data.values.get(0).unwrap().split(';');
                 (
                     x.next().unwrap().to_string(),
-                    x.next().unwrap().parse().unwrap(),
+                    x.next().and_then(|x| x.parse().ok()),
                 )
             };
 
