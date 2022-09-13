@@ -19,4 +19,7 @@ pub enum Error {
 
     #[error("reqwest: {0}")]
     ReqwestError(#[from] reqwest::Error),
+
+    #[error("{0}")]
+    CustomError(String),
 }

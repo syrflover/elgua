@@ -62,16 +62,17 @@ impl HistoryStore {
     }
 
     pub async fn add(&self, history: &History) -> sqlx::Result<()> {
-        let _r: PgQueryResult = sqlx::query!(
+        let _r = sqlx::query(
             r#"
-            INSERT INTO history (kind, url, user_id, created_at)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO history (kind, url, user_id, volume, created_at)
+            VALUES ($1, $2, $3, $4, $5)
             "#,
-            history.kind.as_str(),
-            history.url,
-            history.user_id as i64,
-            history.created_at
         )
+        .bind(history.kind.as_str())
+        .bind(history.url.as_str())
+        .bind(history.user_id as i64)
+        .bind(history.volume as i16)
+        .bind(history.created_at)
         .execute(&self.conn)
         .await?;
 
