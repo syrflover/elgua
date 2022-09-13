@@ -94,6 +94,8 @@ async fn route_application_command(
                     music.clone()
                 };
 
+                command.defer(&ctx.http).await?;
+
                 let x = play(ctx, cfg.guild_id, cfg.channel_id, user_id, &url, volume).await?;
 
                 message_send(ctx, command, &x).await?;
@@ -107,7 +109,7 @@ async fn route_application_command(
                         let select_menu = CreateSelectMenu::default()
                             .min_values(1)
                             .max_values(1)
-                            .placeholder("재생할 곡을 선택해 주세요")
+                            .placeholder("재생할 음악을 선택해 주세요")
                             .custom_id("play-yt-select-0")
                             .options(|x| {
                                 metadata_vec.into_iter().enumerate().fold(
@@ -159,11 +161,7 @@ async fn route_application_command(
 
             let x = volume(ctx, volume_).await?;
 
-            command
-                .create_interaction_response(&ctx.http, |resp| {
-                    resp.interaction_response_data(|message| message.content(x))
-                })
-                .await?;
+            message_send(ctx, command, x).await?;
         }
 
         _ => {}
@@ -192,9 +190,9 @@ async fn route_message_component(
                 )
             };
 
-            let x = play(ctx, cfg.guild_id, cfg.channel_id, user_id, &url, volume).await?;
-
             command.defer(&ctx.http).await?;
+
+            let x = play(ctx, cfg.guild_id, cfg.channel_id, user_id, &url, volume).await?;
 
             command
                 .message
@@ -217,12 +215,29 @@ impl EventHandler for Handler {
             Interaction::ApplicationCommand(command) => {
                 if let Err(err) = route_application_command(&ctx, &command).await {
                     println!("err: {err:?}");
+
+                    command
+                        .edit_original_interaction_response(&ctx.http, |message| {
+                            message
+                                .content(err)
+                                .components(|c| c.set_action_rows(Default::default()))
+                        })
+                        .await
+                        .unwrap();
                 }
             }
 
             Interaction::MessageComponent(mut command) => {
                 if let Err(err) = route_message_component(&ctx, &mut command).await {
                     println!("err: {err:?}");
+
+                    command
+                        .message
+                        .edit(&ctx.http, |message| {
+                            message.content(err).set_components(Default::default())
+                        })
+                        .await
+                        .unwrap();
                 }
             }
             _ => {}
