@@ -220,7 +220,7 @@ impl EventHandler for Handler {
         match interaction {
             Interaction::ApplicationCommand(command) => {
                 if let Err(err) = route_application_command(&ctx, &command).await {
-                    println!("err: {err:?}");
+                    log::error!("err: {err:?}");
 
                     command
                         .edit_original_interaction_response(&ctx.http, |message| {
@@ -235,7 +235,7 @@ impl EventHandler for Handler {
 
             Interaction::MessageComponent(mut command) => {
                 if let Err(err) = route_message_component(&ctx, &mut command).await {
-                    println!("err: {err:?}");
+                    log::error!("err: {err:?}");
 
                     command
                         .message

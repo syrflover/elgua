@@ -16,7 +16,7 @@ pub struct PageInfo {
 pub struct SearchResult {
     pub kind: String,
     pub etag: String,
-    pub next_page_token: String,
+    pub next_page_token: Option<String>,
     pub region_code: String,
     pub page_info: PageInfo,
     pub items: Vec<Item>,

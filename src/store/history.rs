@@ -1,6 +1,8 @@
 use chrono::{DateTime, Utc};
 use sqlx::{postgres::PgQueryResult, PgPool, Row};
 
+use super::search;
+
 #[derive(Debug, Clone, Copy)]
 pub enum HistoryKind {
     YouTube,
@@ -31,17 +33,36 @@ impl HistoryKind {
 #[derive(Debug, Clone)]
 pub struct History {
     pub id: u64,
+    pub title: String,
+    pub channel: String,
     pub kind: HistoryKind,
+    // unique하게 만들 방법
+    // TODO:
     pub url: String,
     pub user_id: u64,
     pub volume: u8,
     pub created_at: DateTime<Utc>,
 }
 
+impl From<History> for search::History {
+    fn from(x: History) -> Self {
+        Self {
+            id: x.id,
+            title: x.title,
+            kind: x.kind.as_str().to_string(),
+            channel: x.channel,
+            user_id: x.user_id,
+            created_at: x.created_at.to_rfc3339(),
+        }
+    }
+}
+
 impl From<HistoryRow> for History {
     fn from(x: HistoryRow) -> Self {
         Self {
             id: x.id as u64,
+            title: x.title,
+            channel: x.channel,
             kind: x.kind.into(),
             url: x.url,
             user_id: x.user_id as u64,
@@ -53,6 +74,7 @@ impl From<HistoryRow> for History {
 
 pub struct HistoryStore {
     conn: PgPool,
+    search: search::HistoryStore,
 }
 
 impl HistoryStore {
@@ -61,6 +83,8 @@ impl HistoryStore {
             r#"CREATE TABLE IF NOT EXISTS history
             (
                 id bigserial PRIMARY KEY,
+                title varchar NOT NULL,
+                channel varchar NOT NULL,
                 kind varchar NOT NULL,
                 url varchar NOT NULL,
                 user_id bigint NOT NULL,
@@ -73,30 +97,54 @@ impl HistoryStore {
         .expect("create table history");
     }
 
-    pub(super) fn new(conn: PgPool) -> Self {
-        Self { conn }
+    pub(super) fn new(conn: PgPool, toshi: toshi::ToshiClient) -> Self {
+        Self {
+            conn,
+            search: search::HistoryStore::new(toshi),
+        }
     }
 
-    pub async fn add(&self, history: &History) -> sqlx::Result<u64> {
+    pub async fn add(&self, history: &History) -> crate::Result<u64> {
+        let mut conn = self.conn.begin().await?;
+
         let r = sqlx::query(
             r#"
-            INSERT INTO history (kind, url, user_id, volume, created_at)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO history (title, channel, kind, url, user_id, volume, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING id
             "#,
         )
+        .bind(history.title.as_str())
+        .bind(history.channel.as_str())
         .bind(history.kind.as_str())
         .bind(history.url.as_str())
         .bind(history.user_id as i64)
         .bind(history.volume as i16)
         .bind(history.created_at)
-        .fetch_one(&self.conn)
+        .fetch_one(&mut conn)
         .await?;
 
         let id: i64 = r.try_get("id")?;
 
+        {
+            let x = History {
+                id: id as u64,
+                ..history.clone()
+            };
+
+            self.search.add(&x.into()).await?;
+        }
+
+        conn.commit().await?;
+
         Ok(id as u64)
     }
+
+    // TODO: 여러가지
+    // 1. 노래들 중복 여부
+    // 2. 특정 유저
+    // 3. 특정 채널
+    // 4. 특정 kind
 
     pub async fn get(
         &self,
@@ -112,7 +160,7 @@ impl HistoryStore {
                 };
                 format!(
                     r#"
-                SELECT DISTINCT(id), kind, url, user_id, volume, created_at FROM history
+                SELECT id, title, channel, kind, url, user_id, volume, created_at FROM history
                 WHERE {}
                 ORDER BY created_at DESC
                 OFFSET $1
@@ -122,7 +170,7 @@ impl HistoryStore {
             }
 
             None => r#"
-            SELECT DISTINCT(id), kind, url, user_id, volume, created_at FROM history
+            SELECT id, title, channel, kind, url, user_id, volume, created_at FROM history
             ORDER BY created_at DESC
             OFFSET $1
             LIMIT $2
@@ -180,11 +228,15 @@ impl HistoryStore {
 
         Ok(())
     }
+
+    pub async fn search() {}
 }
 
 #[derive(sqlx::FromRow)]
 struct HistoryRow {
     id: i64,
+    title: String,
+    channel: String,
     kind: String,
     url: String,
     user_id: i64,

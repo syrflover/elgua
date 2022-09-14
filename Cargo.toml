@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 async-trait = "0.1.57"
 chrono = "0.4.22"
+futures = "0.3.24"
 log = "0.4.17"
 reqwest = "0.11.11"
 sai = "0.1.4"
@@ -17,5 +18,9 @@ serenity = { version = "0.11.5", features = ["voice"] }
 simple_logger = "2.3.0"
 songbird = "0.3.0"
 sqlx = { version = "0.6.1", features = ["postgres", "uuid", "chrono", "runtime-tokio-rustls"]}
+tantivy = "0.18.0"
 thiserror = "1.0.34"
 tokio = { version = "1.21.0", features = ["macros", "rt-multi-thread", "rt", "sync", "signal", "process"] }
+# toshi = { git = "https://github.com/toshi-search/Toshi", rev = "2caf73e" }
+toshi = { git = "https://github.com/syrflover/Toshi", branch = "ko" }
+# toshi = { path = "../toshi/toshi-client" }

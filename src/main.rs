@@ -17,7 +17,7 @@ async fn main() {
         .unwrap();
 
     let cfg = Cfg::new();
-    let store = Store::connect(&cfg.database_url).await;
+    let store = Store::connect(&cfg).await;
 
     let framework = StandardFramework::new();
 

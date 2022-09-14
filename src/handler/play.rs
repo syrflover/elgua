@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use chrono::Utc;
 use serenity::{
@@ -6,8 +6,7 @@ use serenity::{
     prelude::{Context, Mutex},
     utils::{EmbedMessageBuilding, MessageBuilder},
 };
-use songbird::{error::JoinError, tracks::PlayMode, Call};
-use tokio::time::sleep;
+use songbird::{error::JoinError, Call};
 
 use crate::store::{History, HistoryKind, Store};
 
@@ -52,8 +51,6 @@ pub async fn play(
 
     let metadata = source.metadata.clone();
 
-    handler.stop();
-
     let mut x = ctx.data.write().await;
 
     let volume = {
@@ -71,27 +68,12 @@ pub async fn play(
         }
     };
 
+    handler.stop();
+
     let track = handler.play_source(source);
 
-    let mut try_count = 0;
-
-    loop {
-        try_count += 1;
-        if try_count >= 3 {
-            return Ok("재생하지 못 했어요".to_string());
-        }
-
-        track.set_volume(volume)?;
-        track.play()?;
-
-        if let PlayMode::Play = track.get_info().await.unwrap().playing {
-            break;
-        }
-
-        sleep(Duration::from_millis(100)).await;
-    }
-
-    log::info!("play: try_count = {try_count}");
+    track.set_volume(volume)?;
+    track.play()?;
 
     {
         let store = x.get::<Store>().unwrap();
@@ -99,6 +81,8 @@ pub async fn play(
         let history_id = {
             let history = History {
                 id: 0,
+                title: metadata.title.clone().unwrap(),
+                channel: metadata.channel.clone().unwrap(),
                 kind: HistoryKind::YouTube,
                 url: metadata.source_url.as_deref().unwrap_or(url).to_string(),
                 user_id: user_id.0,
@@ -109,7 +93,7 @@ pub async fn play(
             store.history().add(&history).await?
         };
 
-        x.insert::<Track>(Track(history_id, track.clone()));
+        x.insert::<Track>(Track(history_id, track));
     }
 
     log::info!("url = {}", metadata.source_url.as_ref().unwrap());
