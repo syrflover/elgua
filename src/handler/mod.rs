@@ -94,13 +94,15 @@ async fn route_application_command(
                     music.clone()
                 };
 
-                command.defer(&ctx.http).await?;
+                message_send(ctx, command, "재생하는 중").await?;
 
                 let x = play(ctx, cfg.guild_id, cfg.channel_id, user_id, &url, volume).await?;
 
-                message_send(ctx, command, &x).await?;
+                command
+                    .edit_original_interaction_response(&ctx.http, |edit| edit.content(x))
+                    .await?;
             } else {
-                message_send(ctx, command, "검색 중").await?;
+                message_send(ctx, command, "검색하는 중").await?;
 
                 let metadata_vec = ytdl::search(&cfg.youtube_api_key, music).await?;
 
