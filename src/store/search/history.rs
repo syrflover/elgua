@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use tantivy::schema::*;
 use toshi::{AsyncClient, IndexOptions, ToshiClient};
 
+use crate::error::ToshiError;
+
 const HISTORY_INDEX_NAME: &str = "history";
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -94,12 +96,23 @@ impl HistoryStore {
             let mut x = Vec::new();
             resp.body_mut().read_to_end(&mut x).await.unwrap();
 
-            let mut x: crate::error::ToshiError = serde_json::from_slice(&x).unwrap_or_default();
+            let mut x: crate::error::ToshiError = serde_json::from_slice(&x).unwrap_or_else(|_e| {
+                let a = String::from_utf8(x).unwrap_or_else(|_e| "unknown error".to_string());
+                ToshiError {
+                    status: 0,
+                    message: a,
+                }
+            });
             x.status = status.as_u16();
 
             log::error!("add: {x}");
 
             Err(x.into())
         }
+    }
+
+    // 1. title
+    pub async fn search(&self) -> crate::Result<()> {
+        todo!()
     }
 }

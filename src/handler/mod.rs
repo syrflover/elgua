@@ -127,7 +127,13 @@ async fn route_application_command(
                                         }
                                         .to_string();
 
-                                        let label = metadata.title.unwrap();
+                                        let label = metadata
+                                            .title
+                                            .unwrap()
+                                            .chars()
+                                            .take(96)
+                                            .chain(" ...".chars())
+                                            .collect::<String>();
                                         let value = match volume {
                                             Some(volume) => format!(
                                                 "{};{}",
@@ -147,6 +153,12 @@ async fn route_application_command(
                                 )
                             })
                             .to_owned();
+
+                        /* let button = CreateButton::default()
+                        .custom_id("play-cancel-0")
+                        .label("취소")
+                        .style(ButtonStyle::Secondary)
+                        .to_owned(); */
 
                         let action_row = CreateActionRow::default()
                             .add_select_menu(select_menu)
