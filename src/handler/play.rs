@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use chrono::Utc;
 use serenity::{
@@ -6,7 +6,8 @@ use serenity::{
     prelude::{Context, Mutex},
     utils::{EmbedMessageBuilding, MessageBuilder},
 };
-use songbird::{error::JoinError, Call};
+use songbird::{error::JoinError, tracks::PlayMode, Call};
+use tokio::time::sleep;
 
 use crate::store::{History, HistoryKind, Store};
 
@@ -72,8 +73,28 @@ pub async fn play(
 
     let track = handler.play_source(source);
 
-    track.set_volume(volume)?;
-    track.play()?;
+    let mut try_count = 0;
+
+    loop {
+        if try_count > 3 {
+            return Err(crate::error::Error::CustomError(
+                "not played this track".to_string(),
+            ));
+        }
+
+        log::debug!("try_count = {try_count}");
+
+        try_count += 1;
+
+        track.set_volume(volume)?;
+        track.play()?;
+
+        sleep(Duration::from_millis(200)).await;
+
+        if track.get_info().await?.playing == PlayMode::Play {
+            break;
+        }
+    }
 
     {
         let store = x.get::<Store>().unwrap();

@@ -249,13 +249,14 @@ async fn route_message_component(
                 })
                 .await?;
         }
+
         x if x.starts_with("play-yt-button-0;") => {
             let mut x = x.splitn(2, ';');
             let url = x.nth(1).unwrap();
 
-            play(ctx, cfg.guild_id, cfg.channel_id, user_id, url, None).await?;
-
             command.defer(&ctx.http).await?;
+
+            play(ctx, cfg.guild_id, cfg.channel_id, user_id, url, None).await?;
         }
         _ => {}
     }
