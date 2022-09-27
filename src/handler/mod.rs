@@ -4,8 +4,10 @@ mod volume;
 use play::play;
 
 use serenity::builder::{
-    CreateActionRow, CreateApplicationCommandOption, CreateApplicationCommands, CreateSelectMenu,
+    CreateActionRow, CreateApplicationCommandOption, CreateApplicationCommands, CreateButton,
+    CreateComponents, CreateSelectMenu,
 };
+use serenity::model::prelude::component::ButtonStyle;
 use serenity::model::prelude::interaction::application_command::{
     ApplicationCommandInteraction, CommandDataOptionValue,
 };
@@ -40,6 +42,15 @@ async fn message_send(
             resp.interaction_response_data(|message| message.content(m))
         })
         .await
+}
+
+fn create_play_button(url: &str) -> CreateButton {
+    CreateButton::default()
+        .custom_id(format!("play-yt-button-0;{url}"))
+        // .emoji(ReactionType::Unicode("▶︎".to_string()))
+        .label("재생하기")
+        .style(ButtonStyle::Success)
+        .to_owned()
 }
 
 async fn route_application_command(
@@ -99,7 +110,16 @@ async fn route_application_command(
                 let x = play(ctx, cfg.guild_id, cfg.channel_id, user_id, &url, volume).await?;
 
                 command
-                    .edit_original_interaction_response(&ctx.http, |edit| edit.content(x))
+                    .edit_original_interaction_response(&ctx.http, |edit| {
+                        let play_button = create_play_button(&url);
+
+                        let action_row = CreateActionRow::default()
+                            .add_button(play_button)
+                            .to_owned();
+
+                        edit.content(x)
+                            .components(|components| components.set_action_row(action_row))
+                    })
                     .await?;
             } else {
                 message_send(ctx, command, "검색하는 중").await?;
@@ -194,14 +214,14 @@ async fn route_message_component(
     ctx: &Context,
     command: &mut MessageComponentInteraction,
 ) -> crate::Result<()> {
+    let cfg = {
+        let x = ctx.data.read().await;
+        x.get::<Cfg>().cloned().unwrap()
+    };
+    let user_id = command.user.id;
+
     match command.data.custom_id.as_str() {
         "play-yt-select-0" => {
-            let cfg = {
-                let x = ctx.data.read().await;
-                x.get::<Cfg>().cloned().unwrap()
-            };
-            let user_id = command.user.id;
-
             let (url, volume): (String, Option<f32>) = {
                 let mut x = command.data.values.get(0).unwrap().split(';');
                 (
@@ -217,11 +237,26 @@ async fn route_message_component(
             command
                 .message
                 .edit(&ctx.http, |message| {
-                    message.content(x).set_components(Default::default())
+                    let play_button = create_play_button(&url);
+                    let action_row = CreateActionRow::default()
+                        .add_button(play_button)
+                        .to_owned();
+                    let components = CreateComponents::default()
+                        .add_action_row(action_row)
+                        .to_owned();
+
+                    message.content(x).set_components(components)
                 })
                 .await?;
         }
-        " " => {}
+        x if x.starts_with("play-yt-button-0;") => {
+            let mut x = x.splitn(2, ';');
+            let url = x.nth(1).unwrap();
+
+            play(ctx, cfg.guild_id, cfg.channel_id, user_id, url, None).await?;
+
+            command.defer(&ctx.http).await?;
+        }
         _ => {}
     }
 
