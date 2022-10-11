@@ -17,6 +17,7 @@ use serenity::model::{
     application::interaction::Interaction, gateway::Ready, prelude::command::CommandOptionType,
 };
 use serenity::prelude::*;
+use serenity::utils::{EmbedMessageBuilding, MessageBuilder};
 use songbird::tracks::TrackHandle;
 
 use crate::cfg::Cfg;
@@ -107,7 +108,16 @@ async fn route_application_command(
 
                 message_send(ctx, command, "재생하는 중").await?;
 
-                let x = play(ctx, cfg.guild_id, cfg.channel_id, user_id, &url, volume).await?;
+                let (metadata, _volume) = play(
+                    ctx,
+                    cfg.guild_id,
+                    cfg.voice_channel_id,
+                    cfg.history_channel_id,
+                    user_id,
+                    &url,
+                    volume,
+                )
+                .await?;
 
                 command
                     .edit_original_interaction_response(&ctx.http, |edit| {
@@ -116,6 +126,10 @@ async fn route_application_command(
                         let action_row = CreateActionRow::default()
                             .add_button(play_button)
                             .to_owned();
+
+                        let x = MessageBuilder::new()
+                            .push_named_link(metadata.title.unwrap(), metadata.source_url.unwrap())
+                            .build();
 
                         edit.content(x)
                             .components(|components| components.set_action_row(action_row))
@@ -232,7 +246,16 @@ async fn route_message_component(
 
             command.defer(&ctx.http).await?;
 
-            let x = play(ctx, cfg.guild_id, cfg.channel_id, user_id, &url, volume).await?;
+            let (metadata, _volume) = play(
+                ctx,
+                cfg.guild_id,
+                cfg.voice_channel_id,
+                cfg.history_channel_id,
+                user_id,
+                &url,
+                volume,
+            )
+            .await?;
 
             command
                 .message
@@ -245,6 +268,10 @@ async fn route_message_component(
                         .add_action_row(action_row)
                         .to_owned();
 
+                    let x = MessageBuilder::new()
+                        .push_named_link(metadata.title.unwrap(), metadata.source_url.unwrap())
+                        .build();
+
                     message.content(x).set_components(components)
                 })
                 .await?;
@@ -256,7 +283,18 @@ async fn route_message_component(
 
             command.defer(&ctx.http).await?;
 
-            play(ctx, cfg.guild_id, cfg.channel_id, user_id, url, None).await?;
+            play(
+                ctx,
+                cfg.guild_id,
+                cfg.voice_channel_id,
+                cfg.history_channel_id,
+                user_id,
+                url,
+                None,
+            )
+            .await?;
+
+            // TODO: 기록 채널로 보내야함
         }
         _ => {}
     }

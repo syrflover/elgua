@@ -10,7 +10,8 @@ use serenity::{
 pub struct Cfg {
     pub token: String,
     pub guild_id: GuildId,
-    pub channel_id: ChannelId,
+    pub voice_channel_id: ChannelId,
+    pub history_channel_id: ChannelId,
     pub database_url: String,
     pub toshi_url: String,
     pub youtube_api_key: String,

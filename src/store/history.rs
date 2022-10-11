@@ -33,6 +33,7 @@ impl HistoryKind {
 #[derive(Debug, Clone)]
 pub struct History {
     pub id: u64,
+    pub message_id: Option<u64>,
     pub title: String,
     pub channel: String,
     pub kind: HistoryKind,
@@ -61,6 +62,7 @@ impl From<HistoryRow> for History {
     fn from(x: HistoryRow) -> Self {
         Self {
             id: x.id as u64,
+            message_id: x.message_id.map(|x| x as u64),
             title: x.title,
             channel: x.channel,
             kind: x.kind.into(),
@@ -83,6 +85,7 @@ impl HistoryStore {
             r#"CREATE TABLE IF NOT EXISTS history
             (
                 id bigserial PRIMARY KEY,
+                message_id bigint,
                 title varchar NOT NULL,
                 channel varchar NOT NULL,
                 kind varchar NOT NULL,
@@ -109,8 +112,8 @@ impl HistoryStore {
 
         let r = sqlx::query(
             r#"
-            INSERT INTO history (title, channel, kind, url, user_id, volume, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO history (title, channel, kind, url, user_id, volume, created_at, message_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING id
             "#,
         )
@@ -121,6 +124,7 @@ impl HistoryStore {
         .bind(history.user_id as i64)
         .bind(history.volume as i16)
         .bind(history.created_at)
+        .bind(history.message_id.map(|x| x as i64))
         .fetch_one(&mut conn)
         .await?;
 
@@ -152,6 +156,7 @@ impl HistoryStore {
         per_page: usize,
         than: Option<Than>,
     ) -> sqlx::Result<Vec<History>> {
+        // FIXME:
         let sql = match than {
             Some(than) => {
                 let r#where = match than {
@@ -213,6 +218,23 @@ impl HistoryStore {
         Ok(history)
     }
 
+    pub async fn find_one_by_id(&self, id: u64) -> sqlx::Result<Option<History>> {
+        let sql = r#"
+            SELECT * FROM history
+            WHERE id = $1
+            ORDER BY id DESC
+            LIMIT 1
+        "#;
+
+        let history = sqlx::query_as(sql)
+            .bind(id as i64)
+            .fetch_optional(&self.conn)
+            .await?
+            .map(|x: HistoryRow| x.into());
+
+        Ok(history)
+    }
+
     pub async fn update_volume(&self, id: u64, volume: u8) -> sqlx::Result<()> {
         let sql = r#"
             UPDATE history
@@ -235,6 +257,7 @@ impl HistoryStore {
 #[derive(sqlx::FromRow)]
 struct HistoryRow {
     id: i64,
+    message_id: Option<i64>,
     title: String,
     channel: String,
     kind: String,
