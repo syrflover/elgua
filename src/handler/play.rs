@@ -97,11 +97,11 @@ pub async fn play(
         track.set_volume(volume)?;
         track.play()?;
 
+        sleep(Duration::from_millis(200)).await;
+
         if track.get_info().await?.playing == PlayMode::Play {
             break;
         }
-
-        sleep(Duration::from_millis(200)).await;
     }
 
     let now = Utc::now();
