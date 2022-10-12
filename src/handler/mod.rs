@@ -4,10 +4,9 @@ mod volume;
 use play::play;
 
 use serenity::builder::{
-    CreateActionRow, CreateApplicationCommandOption, CreateApplicationCommands, CreateButton,
-    CreateComponents, CreateSelectMenu,
+    CreateActionRow, CreateApplicationCommandOption, CreateApplicationCommands, CreateComponents,
+    CreateSelectMenu,
 };
-use serenity::model::prelude::component::ButtonStyle;
 use serenity::model::prelude::interaction::application_command::{
     ApplicationCommandInteraction, CommandDataOptionValue,
 };
@@ -21,11 +20,13 @@ use serenity::utils::{EmbedMessageBuilding, MessageBuilder};
 use songbird::tracks::TrackHandle;
 
 use crate::cfg::Cfg;
+use crate::component::create_play_button;
+use crate::event::EventSender;
 use crate::ytdl;
 
 use self::volume::volume;
 
-pub struct Track(pub u64, pub TrackHandle);
+pub struct Track(pub String, pub TrackHandle);
 
 impl TypeMapKey for Track {
     type Value = Track;
@@ -45,22 +46,16 @@ async fn message_send(
         .await
 }
 
-fn create_play_button(url: &str) -> CreateButton {
-    CreateButton::default()
-        .custom_id(format!("play-yt-button-0;{url}"))
-        // .emoji(ReactionType::Unicode("▶︎".to_string()))
-        .label("재생하기")
-        .style(ButtonStyle::Success)
-        .to_owned()
-}
-
 async fn route_application_command(
     ctx: &Context,
     command: &ApplicationCommandInteraction,
 ) -> crate::Result<()> {
-    let cfg = {
+    let (cfg, event_tx) = {
         let x = ctx.data.read().await;
-        x.get::<Cfg>().cloned().unwrap()
+        let cfg = x.get::<Cfg>().cloned().unwrap();
+        let event_tx = x.get::<EventSender>().cloned().unwrap();
+
+        (cfg, (&*event_tx).clone())
     };
     let user_id = command.user.id;
 
@@ -108,11 +103,11 @@ async fn route_application_command(
 
                 message_send(ctx, command, "재생하는 중").await?;
 
-                let (metadata, _volume) = play(
+                let (metadata, volume) = play(
                     ctx,
+                    event_tx,
                     cfg.guild_id,
                     cfg.voice_channel_id,
-                    cfg.history_channel_id,
                     user_id,
                     &url,
                     volume,
@@ -129,6 +124,8 @@ async fn route_application_command(
 
                         let x = MessageBuilder::new()
                             .push_named_link(metadata.title.unwrap(), metadata.source_url.unwrap())
+                            .push("\n소리 크기: ")
+                            .push((volume * 100.0) as u8)
                             .build();
 
                         edit.content(x)
@@ -166,7 +163,7 @@ async fn route_application_command(
                                             .unwrap()
                                             .chars()
                                             .take(96)
-                                            .chain(" ...".chars())
+                                            .chain(" ...".chars()) // TODO: fixme
                                             .collect::<String>();
                                         let value = match volume {
                                             Some(volume) => format!(
@@ -213,7 +210,7 @@ async fn route_application_command(
                 _ => unreachable!(),
             };
 
-            let x = volume(ctx, volume_).await?;
+            let x = volume(ctx, cfg.history_channel_id, volume_).await?;
 
             message_send(ctx, command, x).await?;
         }
@@ -228,9 +225,12 @@ async fn route_message_component(
     ctx: &Context,
     command: &mut MessageComponentInteraction,
 ) -> crate::Result<()> {
-    let cfg = {
+    let (cfg, event_tx) = {
         let x = ctx.data.read().await;
-        x.get::<Cfg>().cloned().unwrap()
+        let cfg = x.get::<Cfg>().cloned().unwrap();
+        let event_tx = x.get::<EventSender>().cloned().unwrap();
+
+        (cfg, (&*event_tx).clone())
     };
     let user_id = command.user.id;
 
@@ -243,14 +243,15 @@ async fn route_message_component(
                     x.next().and_then(|x| x.parse().ok()),
                 )
             };
+            let uid = ytdl::parse_vid(url.parse().unwrap());
 
             command.defer(&ctx.http).await?;
 
-            let (metadata, _volume) = play(
+            let (metadata, volume) = play(
                 ctx,
+                event_tx,
                 cfg.guild_id,
                 cfg.voice_channel_id,
-                cfg.history_channel_id,
                 user_id,
                 &url,
                 volume,
@@ -260,7 +261,7 @@ async fn route_message_component(
             command
                 .message
                 .edit(&ctx.http, |message| {
-                    let play_button = create_play_button(&url);
+                    let play_button = create_play_button(&uid);
                     let action_row = CreateActionRow::default()
                         .add_button(play_button)
                         .to_owned();
@@ -269,7 +270,9 @@ async fn route_message_component(
                         .to_owned();
 
                     let x = MessageBuilder::new()
-                        .push_named_link(metadata.title.unwrap(), metadata.source_url.unwrap())
+                        .push_named_link(metadata.title.unwrap(), &url)
+                        .push("\n소리 크기: ")
+                        .push((volume * 100.0) as u8)
                         .build();
 
                     message.content(x).set_components(components)
@@ -285,16 +288,14 @@ async fn route_message_component(
 
             play(
                 ctx,
+                event_tx,
                 cfg.guild_id,
                 cfg.voice_channel_id,
-                cfg.history_channel_id,
                 user_id,
                 url,
                 None,
             )
             .await?;
-
-            // TODO: 기록 채널로 보내야함
         }
         _ => {}
     }

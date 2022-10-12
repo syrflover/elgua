@@ -1,5 +1,6 @@
 use std::process::Stdio;
 
+use http::Uri;
 use serde::Deserialize;
 use songbird::input::Metadata;
 use tokio::process::Command;
@@ -144,6 +145,45 @@ pub async fn search_metadata(
     let metadata = Metadata::from_ytdl_output(value);
 
     Ok(metadata) */
+}
+
+pub fn parse_vid(uri: Uri) -> String {
+    #[derive(Deserialize)]
+    struct Query {
+        v: Option<String>,
+    }
+
+    let host = uri.host().unwrap_or("x");
+    let path = uri.path();
+    let query = uri.query().unwrap_or_default();
+
+    log::debug!("host = {host}");
+    log::debug!("path = {path}");
+    log::debug!("query = {query}");
+
+    if path.starts_with("/watch") {
+        // https://www.youtube.com/watch?v=CLUDmYy9VP8
+        let Query { v } = serde_qs::from_str(query).unwrap();
+
+        if let Some(uid) = v {
+            uid
+        } else {
+            // https://www.youtube.com/watch/CLUDmYy9VP8
+            let x = path.split("/watch/");
+
+            x.last().unwrap().to_string()
+        }
+    } else if path.starts_with("/v/") {
+        // https://www.youtube.com/v/CLUDmYy9VP8
+        let x = path.split("/v/");
+
+        x.last().unwrap().to_string()
+    } else if host == "youtu.be" {
+        // https://youtu.be/CLUDmYy9VP8
+        path.replace('/', "")
+    } else {
+        todo!("error handle");
+    }
 }
 
 #[cfg(test)]

@@ -1,17 +1,16 @@
 use std::{sync::Arc, time::Duration};
 
-use chrono::Utc;
 use serenity::{
-    builder::{CreateActionRow, CreateComponents, CreateEmbed, CreateEmbedAuthor},
     model::id::{ChannelId, GuildId, MessageId, UserId},
     prelude::{Context, Mutex},
 };
 use songbird::{error::JoinError, input::Metadata, tracks::PlayMode, Call};
-use tokio::time::sleep;
+use tokio::{sync::mpsc::Sender, time::sleep};
 
 use crate::{
-    handler::create_play_button,
-    store::{History, HistoryKind, Store},
+    event::Event,
+    store::{HistoryKind, Store},
+    ytdl,
 };
 
 use super::Track;
@@ -30,9 +29,9 @@ pub async fn get_voice_handler(
 
 pub async fn play(
     ctx: &Context,
+    event_tx: Sender<(Context, Event)>,
     guild_id: GuildId,
     voice_channel_id: ChannelId,
-    history_channel_id: ChannelId,
     user_id: UserId,
     url: &str,
     volume: Option<f32>,
@@ -52,6 +51,8 @@ pub async fn play(
         songbird::input::ytdl_search(url).await?
     }; */
 
+    let uid = ytdl::parse_vid(url.parse().unwrap());
+
     let mut x = ctx.data.write().await;
 
     let (volume, prev_message_id) = {
@@ -59,7 +60,7 @@ pub async fn play(
             Some(volume) => (volume, None),
             None => {
                 let store = x.get::<Store>().unwrap();
-                let history = store.history().find_one(HistoryKind::YouTube, url).await?;
+                let history = store.history().find_one(HistoryKind::YouTube, &uid).await?;
 
                 match history {
                     Some(history) => (
@@ -71,6 +72,9 @@ pub async fn play(
             }
         }
     };
+
+    // event 발생
+    // -> 메세지 보내고 업데이트 하는 방식으로?
 
     handler.stop();
 
@@ -104,84 +108,16 @@ pub async fn play(
         }
     }
 
-    let now = Utc::now();
-
-    let message = {
-        let user = user_id.to_user(&ctx.http).await?;
-
-        let author = {
-            let mut x = CreateEmbedAuthor::default().name(&user.name).to_owned();
-            if let Some(avatar_url) = user.avatar_url() {
-                x.icon_url(avatar_url);
-            }
-            x
-        };
-
-        let embed = {
-            let mut x = CreateEmbed::default()
-                .set_author(author)
-                .title(metadata.title.as_ref().unwrap())
-                .field("채널", metadata.channel.as_ref().unwrap(), true)
-                .field("소리 크기", (volume * 100.0) as u8, true)
-                .url(metadata.source_url.as_ref().unwrap())
-                .timestamp(now)
-                .to_owned();
-
-            if let Some(image_url) = metadata.thumbnail.as_ref() {
-                x.image(image_url);
-            };
-            x
-        };
-
-        let play_button = create_play_button(url);
-        let action_row = CreateActionRow::default()
-            .add_button(play_button)
-            .to_owned();
-        let components = CreateComponents::default()
-            .add_action_row(action_row)
-            .to_owned();
-
-        if let Some(prev_message_id) = prev_message_id {
-            if let Ok(prev_message) = ctx
-                .http
-                .get_message(history_channel_id.0, prev_message_id.0)
-                .await
-            {
-                prev_message.delete(&ctx.http).await?;
-            }
-        };
-
-        history_channel_id
-            .send_message(&ctx.http, |message| {
-                message.set_embed(embed).set_components(components)
-            })
-            .await?
-    };
-
-    {
-        let store = x.get::<Store>().unwrap();
-
-        let history_id = {
-            let history = History {
-                id: 0,
-                message_id: Some(message.id.0),
-                title: metadata.title.clone().unwrap(),
-                channel: metadata.channel.clone().unwrap(),
-                kind: HistoryKind::YouTube,
-                url: metadata.source_url.as_deref().unwrap_or(url).to_string(),
-                user_id: user_id.0,
-                volume: (volume * 100.0) as u8,
-                created_at: now,
-            };
-
-            store.history().add(&history).await?
-        };
-
-        x.insert::<Track>(Track(history_id, track));
-    }
-
     log::info!("url = {}", metadata.source_url.as_ref().unwrap());
     log::info!("volume = {}", volume);
+
+    x.insert::<Track>(Track(uid, track));
+
+    let event = Event::Play(*metadata.clone(), volume, user_id, prev_message_id);
+
+    if let Err(err) = event_tx.send((ctx.clone(), event)).await {
+        panic!("closed event channel: {}", err)
+    }
 
     Ok((*metadata, volume))
 }

@@ -1,5 +1,7 @@
 pub mod cfg;
+pub mod component;
 pub mod error;
+pub mod event;
 pub mod handler;
 pub mod store;
 pub mod ytdl;

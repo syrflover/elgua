@@ -37,9 +37,7 @@ pub struct History {
     pub title: String,
     pub channel: String,
     pub kind: HistoryKind,
-    // unique하게 만들 방법
-    // TODO:
-    pub url: String,
+    pub uid: String,
     pub user_id: u64,
     pub volume: u8,
     pub created_at: DateTime<Utc>,
@@ -66,7 +64,7 @@ impl From<HistoryRow> for History {
             title: x.title,
             channel: x.channel,
             kind: x.kind.into(),
-            url: x.url,
+            uid: x.uid,
             user_id: x.user_id as u64,
             volume: x.volume as u8,
             created_at: x.created_at,
@@ -89,7 +87,7 @@ impl HistoryStore {
                 title varchar NOT NULL,
                 channel varchar NOT NULL,
                 kind varchar NOT NULL,
-                url varchar NOT NULL,
+                uid varchar NOT NULL,
                 user_id bigint NOT NULL,
                 volume smallint NOT NULL,
                 created_at timestamptz NOT NULL
@@ -107,20 +105,28 @@ impl HistoryStore {
         }
     }
 
-    pub async fn add(&self, history: &History) -> crate::Result<u64> {
+    pub async fn add_or_update(&self, history: &History) -> crate::Result<u64> {
         let mut conn = self.conn.begin().await?;
 
         let r = sqlx::query(
             r#"
-            INSERT INTO history (title, channel, kind, url, user_id, volume, created_at, message_id)
+            INSERT INTO history (title, channel, kind, uid, user_id, volume, created_at, message_id)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (uid)
+            DO UPDATE
+                SET title = $1,
+                    channel = $2,
+                    user_id = $5,
+                    volume = $6,
+                    created_at = $7,
+                    message_id = $8
             RETURNING id
             "#,
         )
         .bind(history.title.as_str())
         .bind(history.channel.as_str())
         .bind(history.kind.as_str())
-        .bind(history.url.as_str())
+        .bind(history.uid.as_str())
         .bind(history.user_id as i64)
         .bind(history.volume as i16)
         .bind(history.created_at)
@@ -165,7 +171,7 @@ impl HistoryStore {
                 };
                 format!(
                     r#"
-                SELECT id, title, channel, kind, url, user_id, volume, created_at FROM history
+                SELECT id, title, channel, kind, uid, user_id, volume, created_at FROM history
                 WHERE {}
                 ORDER BY created_at DESC
                 OFFSET $1
@@ -175,7 +181,7 @@ impl HistoryStore {
             }
 
             None => r#"
-            SELECT id, title, channel, kind, url, user_id, volume, created_at FROM history
+            SELECT id, title, channel, kind, uid, user_id, volume, created_at FROM history
             ORDER BY created_at DESC
             OFFSET $1
             LIMIT $2
@@ -198,19 +204,19 @@ impl HistoryStore {
     pub async fn find_one(
         &self,
         kind: HistoryKind,
-        url: impl AsRef<str>,
+        uid: impl AsRef<str>,
     ) -> sqlx::Result<Option<History>> {
         let sql = r#"
             SELECT * FROM history
             WHERE kind = $1 AND
-                  url = $2
+                  uid = $2
             ORDER BY id DESC
             LIMIT 1
         "#;
 
         let history = sqlx::query_as(sql)
             .bind(kind.as_str())
-            .bind(url.as_ref())
+            .bind(uid.as_ref())
             .fetch_optional(&self.conn)
             .await?
             .map(|x: HistoryRow| x.into());
@@ -222,8 +228,6 @@ impl HistoryStore {
         let sql = r#"
             SELECT * FROM history
             WHERE id = $1
-            ORDER BY id DESC
-            LIMIT 1
         "#;
 
         let history = sqlx::query_as(sql)
@@ -235,16 +239,16 @@ impl HistoryStore {
         Ok(history)
     }
 
-    pub async fn update_volume(&self, id: u64, volume: u8) -> sqlx::Result<()> {
+    pub async fn update_volume(&self, uid: &str, volume: u8) -> sqlx::Result<()> {
         let sql = r#"
             UPDATE history
             SET volume = $1
-            WHERE id = $2
+            WHERE uid = $2
         "#;
 
         sqlx::query(sql)
             .bind(volume as i16)
-            .bind(id as i64)
+            .bind(uid)
             .execute(&self.conn)
             .await?;
 
@@ -261,7 +265,7 @@ struct HistoryRow {
     title: String,
     channel: String,
     kind: String,
-    url: String,
+    uid: String,
     user_id: i64,
     volume: i16,
     created_at: DateTime<Utc>,

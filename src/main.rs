@@ -1,8 +1,9 @@
-use elgua::{cfg::Cfg, handler::Handler, store::Store};
+use elgua::{cfg::Cfg, event, event::EventSender, handler::Handler, store::Store};
 use log::LevelFilter;
 use serenity::{framework::StandardFramework, prelude::*, Client};
 use simple_logger::SimpleLogger;
 use songbird::SerenityInit;
+use tokio::sync::mpsc;
 
 #[tokio::main]
 async fn main() {
@@ -18,6 +19,7 @@ async fn main() {
 
     let cfg = Cfg::new();
     let store = Store::connect(&cfg).await;
+    let (event_tx, event_rx) = mpsc::channel(12);
 
     let framework = StandardFramework::new();
 
@@ -34,7 +36,16 @@ async fn main() {
         let mut x = client.data.write().await;
         x.insert::<Cfg>(cfg);
         x.insert::<Store>(store);
+        x.insert::<EventSender>(EventSender::new(event_tx))
     }
 
-    client.start().await.unwrap();
+    tokio::select! {
+        r = client.start() => {
+            log::error!("{r:?}");
+        }
+
+        _ = event::process(event_rx) => {
+            log::error!("error occured: event::process()");
+        }
+    };
 }

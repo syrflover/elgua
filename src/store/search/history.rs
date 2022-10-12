@@ -112,7 +112,7 @@ impl HistoryStore {
     }
 
     // 1. title
-    pub async fn search(&self) -> crate::Result<()> {
+    pub async fn _search(&self) -> crate::Result<()> {
         todo!()
     }
 }
