@@ -4,7 +4,12 @@ use serenity::{
     model::id::{ChannelId, GuildId, MessageId, UserId},
     prelude::{Context, Mutex},
 };
-use songbird::{error::JoinError, input::Metadata, tracks::PlayMode, Call};
+use songbird::{
+    error::JoinError,
+    input::{Input, Metadata, Restartable},
+    tracks::{PlayMode, TrackError},
+    Call,
+};
 use tokio::{sync::mpsc::Sender, time::sleep};
 
 use crate::{
@@ -73,20 +78,16 @@ pub async fn play(
         }
     };
 
-    // event 발생
-    // -> 메세지 보내고 업데이트 하는 방식으로?
-
     handler.stop();
 
-    let mut track;
-    let mut metadata;
+    let mut source: Input = Restartable::ytdl(url.to_string(), true).await?.into();
+    let mut metadata = source.metadata.clone();
+    let mut track = handler.play_only_source(source);
 
     let mut try_count = 0;
 
     loop {
-        let source = songbird::input::ytdl(url).await?;
-        metadata = source.metadata.clone();
-        track = handler.play_source(source);
+        let mut play_state = PlayMode::Play;
 
         if try_count > 3 {
             return Err(crate::error::Error::CustomError(
@@ -98,13 +99,32 @@ pub async fn play(
 
         try_count += 1;
 
-        track.set_volume(volume)?;
-        track.play()?;
+        let play_result = [track.set_volume(volume), track.play()]
+            .into_iter()
+            .collect::<Result<(), _>>();
 
-        sleep(Duration::from_millis(200)).await;
+        if let Err(TrackError::Finished) = play_result {
+            play_state = PlayMode::End;
+        } else {
+            sleep(Duration::from_millis(200)).await;
 
-        if track.get_info().await?.playing == PlayMode::Play {
-            break;
+            play_state = track
+                .get_info()
+                .await
+                .map(|x| x.playing)
+                .unwrap_or(PlayMode::End);
+        }
+
+        match play_state {
+            PlayMode::Play => break,
+
+            PlayMode::End => {
+                source = Restartable::ytdl(url.to_string(), true).await?.into();
+                metadata = source.metadata.clone();
+                track = handler.play_only_source(source);
+            }
+
+            _ => {}
         }
     }
 
