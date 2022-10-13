@@ -15,19 +15,19 @@ pub struct PageInfo {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchResult {
-    pub kind: String,
-    pub etag: String,
-    pub next_page_token: Option<String>,
-    pub region_code: String,
-    pub page_info: PageInfo,
+    // pub kind: String,
+    // pub etag: String,
+    // pub next_page_token: Option<String>,
+    // pub region_code: String,
+    // pub page_info: PageInfo,
     pub items: Vec<Item>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Item {
-    pub kind: String,
-    pub etag: String,
+    // pub kind: String,
+    // pub etag: String,
     pub id: ItemId,
     pub snippet: Snippet,
 }
@@ -35,21 +35,21 @@ pub struct Item {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ItemId {
-    pub kind: String,
+    // pub kind: String,
     pub video_id: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snippet {
-    pub published_at: String,
-    pub channel_id: String,
-    pub title: String,
-    pub description: String,
+    pub published_at: Option<String>,
+    pub channel_id: Option<String>,
+    pub title: Option<String>,
+    pub description: Option<String>,
     // pub thumbnails:
-    pub channel_title: String,
-    pub live_broadcast_content: String,
-    pub publish_time: String,
+    pub channel_title: Option<String>,
+    // pub live_broadcast_content: String,
+    pub publish_time: Option<String>,
 }
 
 pub async fn search(
@@ -76,28 +76,36 @@ pub async fn search(
     let r = a
         .items
         .into_iter()
-        .map(|item| Metadata {
-            track: None,
-            artist: None, /* Some(item.snippet.channel_title) */
-            title: Some(item.snippet.title),
-            source_url: Some(format!(
-                "https://www.youtube.com/watch?v={}",
-                item.id.video_id
-            )),
-            date: Some(item.snippet.published_at),
-            channel: Some(item.snippet.channel_title),
-            channels: None,
-            start_time: None,
-            duration: None,
-            sample_rate: None,
-            thumbnail: None,
+        .map(|item| {
+            let date = if let Some(d) = item.snippet.published_at {
+                Some(d)
+            } else {
+                item.snippet.publish_time
+            };
+
+            Metadata {
+                track: None,
+                artist: None, /* Some(item.snippet.channel_title) */
+                title: item.snippet.title,
+                source_url: Some(format!(
+                    "https://www.youtube.com/watch?v={}",
+                    item.id.video_id
+                )),
+                date,
+                channel: item.snippet.channel_title,
+                channels: None,
+                start_time: None,
+                duration: None,
+                sample_rate: None,
+                thumbnail: None,
+            }
         })
         .collect();
 
     Ok(r)
 }
 
-pub async fn search_metadata(
+/* pub async fn search_metadata(
     keyword: &str,
     len: u8,
 ) -> Result<Vec<Metadata>, songbird::input::error::Error> {
@@ -145,7 +153,7 @@ pub async fn search_metadata(
     let metadata = Metadata::from_ytdl_output(value);
 
     Ok(metadata) */
-}
+} */
 
 pub fn parse_vid(uri: Uri) -> String {
     #[derive(Deserialize)]
@@ -190,12 +198,12 @@ pub fn parse_vid(uri: Uri) -> String {
 mod tests {
     use super::*;
 
-    #[tokio::test]
+    /* #[tokio::test]
     async fn test_search_metadata() {
         let xs = search_metadata("MC재앙 개구리", 5).await.unwrap();
 
         println!("{xs:#?}");
-    }
+    } */
 
     #[tokio::test]
     async fn test_search() {
