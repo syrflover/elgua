@@ -103,6 +103,8 @@ async fn route_application_command(
 
                 message_send(ctx, command, "재생하는 중").await?;
 
+                let uid = ytdl::parse_vid(url.parse().unwrap());
+
                 let (metadata, volume) = play(
                     ctx,
                     event_tx,
@@ -116,7 +118,7 @@ async fn route_application_command(
 
                 command
                     .edit_original_interaction_response(&ctx.http, |edit| {
-                        let play_button = create_play_button(&url);
+                        let play_button = create_play_button(&uid);
 
                         let action_row = CreateActionRow::default()
                             .add_button(play_button)
