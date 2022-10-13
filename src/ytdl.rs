@@ -1,9 +1,6 @@
-use std::process::Stdio;
-
 use http::Uri;
 use serde::Deserialize;
 use songbird::input::Metadata;
-use tokio::process::Command;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

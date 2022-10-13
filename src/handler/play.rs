@@ -87,7 +87,7 @@ pub async fn play(
     let mut try_count = 0;
 
     loop {
-        let mut play_state = PlayMode::Play;
+        let play_state;
 
         if try_count > 3 {
             return Err(crate::error::Error::CustomError(
@@ -106,7 +106,7 @@ pub async fn play(
         if let Err(TrackError::Finished) = play_result {
             play_state = PlayMode::End;
         } else {
-            sleep(Duration::from_millis(200)).await;
+            sleep(Duration::from_millis(100)).await;
 
             play_state = track
                 .get_info()

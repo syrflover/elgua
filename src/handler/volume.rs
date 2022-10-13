@@ -17,7 +17,13 @@ pub async fn volume(
     let x = ctx.data.read().await;
 
     if let Some(Track(uid, track)) = x.get::<Track>() {
-        if let PlayMode::Play | PlayMode::Pause = track.get_info().await.unwrap().playing {
+        let play_state = track
+            .get_info()
+            .await
+            .map(|x| x.playing)
+            .unwrap_or(PlayMode::End);
+
+        if let PlayMode::Play | PlayMode::Pause = play_state {
             track.set_volume(volume)?;
 
             let store = x.get::<Store>().unwrap();

@@ -158,13 +158,17 @@ async fn route_application_command(
                                         }
                                         .to_string();
 
-                                        let label = metadata
-                                            .title
-                                            .unwrap()
-                                            .chars()
-                                            .take(96)
-                                            .chain(" ...".chars()) // TODO: fixme
-                                            .collect::<String>();
+                                        let title = metadata.title.unwrap();
+                                        let label = if title.chars().count() > 100 {
+                                            title
+                                                .chars()
+                                                .take(96)
+                                                .chain(" ...".chars())
+                                                .collect::<String>()
+                                        } else {
+                                            title
+                                        };
+
                                         let value = match volume {
                                             Some(volume) => format!(
                                                 "{};{}",
