@@ -1,3 +1,4 @@
+pub mod audio;
 pub mod cfg;
 pub mod component;
 pub mod error;

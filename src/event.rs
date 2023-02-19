@@ -6,7 +6,6 @@ use serenity::{
     model::id::{MessageId, UserId},
     prelude::{Context, TypeMapKey},
 };
-use songbird::input::Metadata;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{
@@ -40,7 +39,7 @@ impl Deref for EventSender {
 #[derive(Debug, Clone)]
 pub enum Event {
     /// metadata, volume
-    Play(Metadata, f32, UserId, Option<MessageId>),
+    Play(youtube_dl::SingleVideo, f32, UserId, Option<MessageId>),
 }
 
 pub async fn process(mut rx: Receiver<(Context, Event)>) {
@@ -63,7 +62,7 @@ async fn handle(ctx: Context, event: Event) -> crate::Result<()> {
         Event::Play(metadata, volume, user_id, prev_message_id) => {
             let x = ctx.data.read().await;
 
-            let uid = ytdl::parse_vid(metadata.source_url.unwrap().parse().unwrap());
+            let uid = ytdl::parse_vid(metadata.webpage_url.unwrap().parse().unwrap());
             let now = Utc::now();
 
             // 1. delete prev message
@@ -92,7 +91,7 @@ async fn handle(ctx: Context, event: Event) -> crate::Result<()> {
                 let embed = {
                     let mut x = CreateEmbed::default()
                         .set_author(author)
-                        .title(metadata.title.as_ref().unwrap())
+                        .title(metadata.title.as_str())
                         .field("채널", metadata.channel.as_ref().unwrap(), true)
                         .field("소리 크기", (volume * 100.0) as u8, true)
                         .url(format!("https://youtu.be/{}", uid))
@@ -129,7 +128,7 @@ async fn handle(ctx: Context, event: Event) -> crate::Result<()> {
                     let history = History {
                         id: 0,
                         message_id: message.map(|x| x.id.0),
-                        title: metadata.title.clone().unwrap(),
+                        title: metadata.title.clone(),
                         channel: metadata.channel.clone().unwrap(),
                         kind: HistoryKind::YouTube,
                         uid,

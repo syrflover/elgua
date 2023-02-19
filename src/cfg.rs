@@ -15,6 +15,8 @@ pub struct Cfg {
     pub database_url: String,
     pub toshi_url: String,
     pub youtube_api_key: String,
+    pub youtube_user_email: Option<String>,
+    pub youtube_user_password: Option<String>,
 }
 
 impl Cfg {
@@ -26,6 +28,17 @@ impl Cfg {
         file.read_to_end(&mut cfg_buf).unwrap();
 
         serde_json::from_slice(&cfg_buf).unwrap()
+    }
+
+    pub fn youtube_account(&self) -> Option<(String, String)> {
+        let a = self.youtube_user_email.clone();
+        let b = self.youtube_user_password.clone();
+
+        if let (Some(a), Some(b)) = (a, b) {
+            Some((a, b))
+        } else {
+            None
+        }
     }
 }
 

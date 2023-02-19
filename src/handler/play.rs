@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use serenity::{
     model::id::{ChannelId, GuildId, MessageId, UserId},
@@ -6,13 +6,14 @@ use serenity::{
 };
 use songbird::{
     error::JoinError,
-    input::{Input, Metadata, Restartable},
     tracks::{PlayMode, TrackError},
     Call,
 };
-use tokio::{sync::mpsc::Sender, time::sleep};
+use tokio::sync::mpsc::Sender;
 
 use crate::{
+    audio::AudioSource,
+    cfg::Cfg,
     event::Event,
     store::{HistoryKind, Store},
     ytdl,
@@ -40,7 +41,7 @@ pub async fn play(
     user_id: UserId,
     url: &str,
     volume: Option<f32>,
-) -> crate::Result<(Metadata, f32)> {
+) -> crate::Result<(youtube_dl::SingleVideo, f32)> {
     let handler = get_voice_handler(ctx, guild_id, voice_channel_id).await?;
     let mut handler = handler.lock().await;
 
@@ -80,8 +81,13 @@ pub async fn play(
 
     handler.stop();
 
-    let mut source: Input = Restartable::ytdl(url.to_string(), true).await?.into();
-    let mut metadata = source.metadata.clone();
+    let audio_source = {
+        let cfg = x.get::<Cfg>().unwrap();
+        AudioSource::from_youtube(&uid, cfg.youtube_account(), &cfg.youtube_api_key).await?
+    };
+    let audio_metadata = audio_source.youtube_metadata().unwrap().clone();
+
+    let mut source = audio_source.get_source().await?;
     let mut track = handler.play_only_source(source);
 
     let mut try_count = 0;
@@ -106,7 +112,7 @@ pub async fn play(
         if let Err(TrackError::Finished) = play_result {
             play_state = PlayMode::End;
         } else {
-            sleep(Duration::from_millis(100)).await;
+            // sleep(Duration::from_millis(100)).await;
 
             play_state = track
                 .get_info()
@@ -119,8 +125,7 @@ pub async fn play(
             PlayMode::Play => break,
 
             PlayMode::End => {
-                source = Restartable::ytdl(url.to_string(), true).await?.into();
-                metadata = source.metadata.clone();
+                source = audio_source.get_source().await?;
                 track = handler.play_only_source(source);
             }
 
@@ -128,16 +133,16 @@ pub async fn play(
         }
     }
 
-    log::info!("url = {}", metadata.source_url.as_ref().unwrap());
+    log::info!("url = {}", audio_metadata.webpage_url.as_ref().unwrap());
     log::info!("volume = {}", volume);
 
     x.insert::<Track>(Track(uid, track));
 
-    let event = Event::Play(*metadata.clone(), volume, user_id, prev_message_id);
+    let event = Event::Play(audio_metadata.clone(), volume, user_id, prev_message_id);
 
     if let Err(err) = event_tx.send((ctx.clone(), event)).await {
         panic!("closed event channel: {}", err)
     }
 
-    Ok((*metadata, volume))
+    Ok((audio_metadata, volume))
 }

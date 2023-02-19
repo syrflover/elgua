@@ -1,3 +1,5 @@
+use std::{collections::HashMap, fmt::Display};
+
 use http::Uri;
 use serde::Deserialize;
 use songbird::input::Metadata;
@@ -17,36 +19,180 @@ pub struct SearchResult {
     // pub next_page_token: Option<String>,
     // pub region_code: String,
     // pub page_info: PageInfo,
-    pub items: Vec<Item>,
+    pub items: Vec<SearchItem>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Item {
+pub struct VideoResult {
     // pub kind: String,
     // pub etag: String,
-    pub id: ItemId,
+    // pub next_page_token: Option<String>,
+    // pub region_code: String,
+    // pub page_info: PageInfo,
+    pub items: Vec<VideoItem>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchItem {
+    // pub kind: String,
+    // pub etag: String,
+    pub id: SearchItemId,
     pub snippet: Snippet,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ItemId {
+pub struct VideoItem {
+    pub id: String,
+    pub snippet: Snippet,
+    // pub file_details: FileDetail,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchItemId {
     // pub kind: String,
     pub video_id: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct Thumbnail {
+    pub url: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileDetail {
+    pub duration_ms: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Snippet {
-    pub published_at: Option<String>,
-    pub channel_id: Option<String>,
-    pub title: Option<String>,
-    pub description: Option<String>,
-    // pub thumbnails:
-    pub channel_title: Option<String>,
+    pub published_at: String,
+    pub channel_id: String,
+    pub title: String,
+    pub description: String,
+    pub thumbnails: HashMap<String, Thumbnail>,
+    pub channel_title: String,
     // pub live_broadcast_content: String,
-    pub publish_time: Option<String>,
+    // pub publish_time: String,
+}
+
+impl From<VideoItem> for youtube_dl::SingleVideo {
+    fn from(x: VideoItem) -> Self {
+        youtube_dl::SingleVideo {
+            id: x.id.clone(),
+            webpage_url: Some(format!("https://www.youtube.com/watch?v={}", x.id)),
+            ..x.snippet.into()
+        }
+    }
+}
+
+impl From<Snippet> for youtube_dl::SingleVideo {
+    fn from(x: Snippet) -> Self {
+        let thumbnails: Vec<youtube_dl::Thumbnail> =
+            x.thumbnails.into_values().map(Into::into).collect();
+
+        let thumbnail_url = thumbnails.get(0).and_then(|a| a.url.as_ref()).cloned();
+
+        youtube_dl::SingleVideo {
+            title: x.title,
+            channel_id: Some(x.channel_id),
+            channel: Some(x.channel_title),
+            description: Some(x.description),
+            thumbnail: thumbnail_url,
+            thumbnails: Some(thumbnails),
+            ..Default::default()
+        }
+    }
+}
+
+impl From<Thumbnail> for youtube_dl::Thumbnail {
+    fn from(x: Thumbnail) -> Self {
+        youtube_dl::Thumbnail {
+            url: Some(x.url),
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct YouTubeError {
+    pub code: u16,
+    pub message: String,
+}
+
+impl std::error::Error for YouTubeError {}
+
+impl Display for YouTubeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.code, self.message)
+    }
+}
+
+impl YouTubeError {
+    pub fn from_slice(xs: &[u8]) -> serde_json::Result<Self> {
+        let x: YouTuneErrorWrapper = serde_json::from_slice(xs)?;
+
+        Ok(x.error)
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct YouTuneErrorWrapper {
+    pub error: YouTubeError,
+}
+
+pub async fn get(
+    youtube_api_key: impl AsRef<str>,
+    id: impl AsRef<str>,
+) -> crate::Result<youtube_dl::SingleVideo> {
+    let params = [
+        ("part", "snippet"),
+        ("type", "video"),
+        ("key", youtube_api_key.as_ref()),
+        ("id", id.as_ref()),
+    ];
+
+    let resp = reqwest::Client::new()
+        .get("https://www.googleapis.com/youtube/v3/videos")
+        .query(&params)
+        .send()
+        .await?;
+
+    let buf = resp.bytes().await?;
+
+    // println!("{buf}");
+
+    let a: VideoResult = match serde_json::from_slice(&buf) {
+        Ok(r) => r,
+        Err(err) => {
+            let err = if let Ok(err) = YouTubeError::from_slice(&buf) {
+                err
+            } else {
+                YouTubeError {
+                    code: 0,
+                    message: err.to_string(),
+                }
+            }
+            .into();
+            return Err(err);
+        }
+    };
+
+    Ok(a.items.into_iter().next().unwrap().into())
+}
+
+#[cfg(test)]
+#[tokio::test]
+async fn test_get() {
+    let r = get("", "j5Ejpw9RkzA").await.unwrap();
+
+    println!("{r:#?}");
 }
 
 pub async fn search(
@@ -68,28 +214,46 @@ pub async fn search(
 
     let buf = resp.bytes().await?;
 
-    let a: SearchResult = serde_json::from_slice(&buf).unwrap();
+    let a: SearchResult = match serde_json::from_slice(&buf) {
+        Ok(r) => r,
+        Err(err) => {
+            let err = if let Ok(err) = YouTubeError::from_slice(&buf) {
+                err.into()
+            } else {
+                YouTubeError {
+                    code: 0,
+                    message: err.to_string(),
+                }
+                .into()
+            };
+            return Err(err);
+        }
+    };
+
+    // println!("{a:#?}");
 
     let r = a
         .items
         .into_iter()
         .map(|item| {
-            let date = if let Some(d) = item.snippet.published_at {
-                Some(d)
-            } else {
-                item.snippet.publish_time
-            };
+            // let date = if let Some(d) = item.snippet.published_at {
+            //     Some(d)
+            // } else {
+            //     item.snippet.publish_time
+            // };
+
+            let date = item.snippet.published_at;
 
             Metadata {
                 track: None,
                 artist: None, /* Some(item.snippet.channel_title) */
-                title: item.snippet.title,
+                title: Some(item.snippet.title),
                 source_url: Some(format!(
                     "https://www.youtube.com/watch?v={}",
                     item.id.video_id
                 )),
-                date,
-                channel: item.snippet.channel_title,
+                date: Some(date),
+                channel: Some(item.snippet.channel_title),
                 channels: None,
                 start_time: None,
                 duration: None,
@@ -102,55 +266,14 @@ pub async fn search(
     Ok(r)
 }
 
-/* pub async fn search_metadata(
-    keyword: &str,
-    len: u8,
-) -> Result<Vec<Metadata>, songbird::input::error::Error> {
-    let keyword = format!("ytsearch{len}:{keyword}");
+#[cfg(test)]
+#[tokio::test]
+async fn test_search() {
+    let youtube_api_key = "";
+    let xs = search(youtube_api_key, "MC재앙 개구리").await.unwrap();
 
-    let youtube_dl_output = Command::new("youtube-dl")
-        .args(&["-s", "-j", &keyword])
-        .stdin(Stdio::null())
-        .output()
-        .await?;
-
-    let xs = String::from_utf8(youtube_dl_output.stdout).unwrap();
-
-    let metadata = xs
-        .lines()
-        .into_iter()
-        .map(|x| {
-            serde_json::from_str(x)
-                .map(Metadata::from_ytdl_output)
-                .map_err(|err| songbird::input::error::Error::Json {
-                    error: err,
-                    parsed_text: xs.clone(),
-                })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(metadata)
-
-    /* let o_vec = youtube_dl_output.stderr;
-
-    let end = (&o_vec)
-        .iter()
-        .position(|el| *el == 0xA)
-        .unwrap_or(o_vec.len());
-
-    let value = serde_json::from_slice(&o_vec[..end]).map_err(|err| {
-        songbird::input::error::Error::Json {
-            error: err,
-            parsed_text: std::str::from_utf8(&o_vec)
-                .unwrap_or_default()
-                .to_string(),
-        }
-    })?;
-
-    let metadata = Metadata::from_ytdl_output(value);
-
-    Ok(metadata) */
-} */
+    println!("{xs:#?}");
+}
 
 pub fn parse_vid(uri: Uri) -> String {
     #[derive(Deserialize)]
@@ -188,25 +311,5 @@ pub fn parse_vid(uri: Uri) -> String {
         path.replace('/', "")
     } else {
         todo!("error handle");
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /* #[tokio::test]
-    async fn test_search_metadata() {
-        let xs = search_metadata("MC재앙 개구리", 5).await.unwrap();
-
-        println!("{xs:#?}");
-    } */
-
-    #[tokio::test]
-    async fn test_search() {
-        let youtube_api_key = "AIzaSyDW0CC9RmNDtT4qHdYFqBY9cJO42TDDm6s";
-        let xs = search(youtube_api_key, "MC재앙 개구리").await.unwrap();
-
-        println!("{xs:#?}");
     }
 }

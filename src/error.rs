@@ -1,12 +1,16 @@
+use std::io;
+
 use serde::Deserialize;
 use songbird::{error::JoinError, input, tracks};
+
+use crate::{audio, ytdl};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("songbird::error::JoinError {0}")]
     JoinError(#[from] JoinError),
 
-    #[error("songbird::input::error::Error {0}")]
+    #[error("songbird::input::error::Error {0:?}")]
     InputError(#[from] input::error::Error),
 
     #[error("songbird::tracks::TrackError {0}")]
@@ -15,9 +19,8 @@ pub enum Error {
     #[error("sqlx::Error {0}")]
     SqlxError(#[from] sqlx::Error),
 
-    #[error("toshi::ToshiClientError {0}")]
-    ToshiClientError(#[from] toshi::ToshiClientError),
-
+    // #[error("toshi::ToshiClientError {0}")]
+    // ToshiClientError(#[from] toshi::ToshiClientError),
     #[error("ToshiError {0}")]
     ToshiError(#[from] ToshiError),
 
@@ -26,6 +29,18 @@ pub enum Error {
 
     #[error("reqwest: {0}")]
     ReqwestError(#[from] reqwest::Error),
+
+    #[error("youtube-dl: {0}")]
+    YoutubeDlError(#[from] youtube_dl::Error),
+
+    #[error("io: {0}")]
+    IoError(#[from] io::Error),
+
+    #[error("audio_source: {0}")]
+    AudioSourceError(#[from] audio::AudioSourceError),
+
+    #[error("youtube_api: {0}")]
+    YouTubeApiError(#[from] ytdl::YouTubeError),
 
     #[error("error: {0}")]
     CustomError(String),

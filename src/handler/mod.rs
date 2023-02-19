@@ -55,7 +55,7 @@ async fn route_application_command(
         let cfg = x.get::<Cfg>().cloned().unwrap();
         let event_tx = x.get::<EventSender>().cloned().unwrap();
 
-        (cfg, (&*event_tx).clone())
+        (cfg, (*event_tx).clone())
     };
     let user_id = command.user.id;
 
@@ -125,7 +125,7 @@ async fn route_application_command(
                             .to_owned();
 
                         let x = MessageBuilder::new()
-                            .push_named_link(metadata.title.unwrap(), metadata.source_url.unwrap())
+                            .push_named_link(metadata.title, metadata.webpage_url.unwrap())
                             .push("\n소리 크기: ")
                             .push((volume * 100.0) as u8)
                             .build();
@@ -236,7 +236,7 @@ async fn route_message_component(
         let cfg = x.get::<Cfg>().cloned().unwrap();
         let event_tx = x.get::<EventSender>().cloned().unwrap();
 
-        (cfg, (&*event_tx).clone())
+        (cfg, (*event_tx).clone())
     };
     let user_id = command.user.id;
 
@@ -276,7 +276,7 @@ async fn route_message_component(
                         .to_owned();
 
                     let x = MessageBuilder::new()
-                        .push_named_link(metadata.title.unwrap(), &url)
+                        .push_named_link(metadata.title, &url)
                         .push("\n소리 크기: ")
                         .push((volume * 100.0) as u8)
                         .build();
