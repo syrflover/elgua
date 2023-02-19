@@ -1,8 +1,6 @@
 use chrono::{DateTime, Utc};
 use sqlx::{postgres::PgQueryResult, PgPool, Row};
 
-use super::search;
-
 #[derive(Debug, Clone, Copy)]
 pub enum HistoryKind {
     YouTube,
@@ -43,7 +41,7 @@ pub struct History {
     pub created_at: DateTime<Utc>,
 }
 
-impl From<History> for search::History {
+/* impl From<History> for search::History {
     fn from(x: History) -> Self {
         Self {
             id: x.id,
@@ -54,7 +52,7 @@ impl From<History> for search::History {
             created_at: x.created_at.to_rfc3339(),
         }
     }
-}
+} */
 
 impl From<HistoryRow> for History {
     fn from(x: HistoryRow) -> Self {
@@ -74,12 +72,12 @@ impl From<HistoryRow> for History {
 
 pub struct HistoryStore {
     conn: PgPool,
-    search: search::HistoryStore,
+    // search: search::HistoryStore,
 }
 
 impl HistoryStore {
     pub(super) async fn init(conn: &PgPool) {
-        let _r: PgQueryResult = sqlx::query!(
+        let _r: PgQueryResult = sqlx::query(
             r#"CREATE TABLE IF NOT EXISTS history
             (
                 id bigserial PRIMARY KEY,
@@ -98,14 +96,17 @@ impl HistoryStore {
         .expect("create table history");
     }
 
-    pub(super) fn new(conn: PgPool, toshi: toshi::ToshiClient) -> Self {
+    pub(super) fn new(conn: PgPool /* , toshi: toshi::ToshiClient */) -> Self {
         Self {
             conn,
-            search: search::HistoryStore::new(toshi),
+            // search: search::HistoryStore::new(toshi),
         }
     }
 
     pub async fn add_or_update(&self, history: &History) -> crate::Result<u64> {
+        log::debug!("adding history");
+        log::debug!("{history:#?}");
+
         let mut conn = self.conn.begin().await?;
 
         let r = sqlx::query(
@@ -136,14 +137,14 @@ impl HistoryStore {
 
         let id: i64 = r.try_get("id")?;
 
-        {
+        /* {
             let x = History {
                 id: id as u64,
                 ..history.clone()
             };
 
             self.search.add(&x.into()).await?;
-        }
+        } */
 
         conn.commit().await?;
 
