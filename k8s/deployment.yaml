@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: elgua
+    namespace: bots
+spec:
+    selector:
+        matchLabels:
+            app: elgua
+    template:
+        metadata:
+            labels:
+                app: elgua
+        spec:
+            containers:
+                - name: elgua
+                  image: 192.168.1.230:32000/elgua:latest
+                  resources:
+                      limits:
+                          memory: 256Mi
+                          cpu: 200m
+                  volumeMounts:
+                      - mountPath: /cache
+                        name: elgua-storage
+            volumes:
+                - name: elgua-storage
+                  persistentVolumeClaim:
+                      claimName: elgua-pvc
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: elgua-pg
+    namespace: bots
+spec:
+    selector:
+        matchLabels:
+            app: elgua-pg
+    template:
+        metadata:
+            labels:
+                app: elgua-pg
+        spec:
+            containers:
+                - name: elgua-pg
+                  image: postgres:15
+                  resources:
+                      limits:
+                          memory: "256Mi"
+                          cpu: "150m"
+                  ports:
+                      - containerPort: 5432
+                  env:
+                      - name: POSTGRES_USER
+                        value: syr
+                      - name: POSTGRES_PASSWORD
+                        value: elgua1234
+                      - name: POSTGRES_DB
+                        value: elgua
+                      - name: PGDATA
+                        value: /var/lib/postgresql/data/pgdata
+                  volumeMounts:
+                      - mountPath: /var/lib/postgresql/data/pgdata
+                        name: elgua-pg-storage
+            volumes:
+                - name: elgua-pg-storage
+                  persistentVolumeClaim:
+                      claimName: elgua-pg-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+    name: elgua-pg
+    namespace: bots
+spec:
+    type: NodePort
+    selector:
+        app: elgua-pg
+    ports:
+        - port: 5432
+          nodePort: 32754
+          protocol: TCP
