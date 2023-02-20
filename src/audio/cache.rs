@@ -21,7 +21,7 @@ impl AudioCache {
     pub async fn get_source(audio_source: &AudioSource) -> Result<Option<Input>, AudioSourceError> {
         let filepath = match audio_source {
             AudioSource::YouTube(x) => format!("{YTDL_CACHE}/{}", x.id),
-            AudioSource::SoundCloud => unimplemented!("not implemented soundcloud"),
+            AudioSource::SoundCloud => unimplemented!(),
         };
 
         let f = match File::open(filepath).await {

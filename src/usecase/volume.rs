@@ -5,9 +5,10 @@ use serenity::{
 };
 use songbird::tracks::PlayMode;
 
-use crate::store::{HistoryKind, Store};
-
-use super::Track;
+use crate::{
+    store::{HistoryKind, Store},
+    track::Track,
+};
 
 pub async fn volume(
     ctx: &Context,

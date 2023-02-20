@@ -2,7 +2,8 @@ use std::{collections::HashMap, fmt::Display};
 
 use http::Uri;
 use serde::Deserialize;
-use songbird::input::Metadata;
+
+use crate::audio::AudioMetadata;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -61,6 +62,8 @@ pub struct SearchItemId {
 #[serde(rename_all = "camelCase")]
 pub struct Thumbnail {
     pub url: String,
+    pub width: usize,
+    pub height: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -82,59 +85,21 @@ pub struct Snippet {
     // pub publish_time: String,
 }
 
-impl From<VideoItem> for youtube_dl::SingleVideo {
-    fn from(x: VideoItem) -> Self {
-        youtube_dl::SingleVideo {
-            id: x.id.clone(),
-            webpage_url: Some(format!("https://www.youtube.com/watch?v={}", x.id)),
-            ..x.snippet.into()
-        }
-    }
-}
-
-impl From<Snippet> for youtube_dl::SingleVideo {
-    fn from(x: Snippet) -> Self {
-        let thumbnails: Vec<youtube_dl::Thumbnail> =
-            x.thumbnails.into_values().map(Into::into).collect();
-
-        let thumbnail_url = thumbnails.get(0).and_then(|a| a.url.as_ref()).cloned();
-
-        youtube_dl::SingleVideo {
-            title: x.title,
-            channel_id: Some(x.channel_id),
-            channel: Some(x.channel_title),
-            description: Some(x.description),
-            thumbnail: thumbnail_url,
-            thumbnails: Some(thumbnails),
-            ..Default::default()
-        }
-    }
-}
-
-impl From<Thumbnail> for youtube_dl::Thumbnail {
-    fn from(x: Thumbnail) -> Self {
-        youtube_dl::Thumbnail {
-            url: Some(x.url),
-            ..Default::default()
-        }
-    }
-}
-
 #[derive(Debug, Deserialize)]
-pub struct YouTubeError {
+pub struct Error {
     pub code: u16,
     pub message: String,
 }
 
-impl std::error::Error for YouTubeError {}
+impl std::error::Error for Error {}
 
-impl Display for YouTubeError {
+impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: {}", self.code, self.message)
     }
 }
 
-impl YouTubeError {
+impl Error {
     pub fn from_slice(xs: &[u8]) -> serde_json::Result<Self> {
         let x: YouTuneErrorWrapper = serde_json::from_slice(xs)?;
 
@@ -142,15 +107,24 @@ impl YouTubeError {
     }
 }
 
+impl From<reqwest::Error> for Error {
+    fn from(x: reqwest::Error) -> Self {
+        Error {
+            code: 0,
+            message: x.to_string(),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct YouTuneErrorWrapper {
-    pub error: YouTubeError,
+    pub error: Error,
 }
 
 pub async fn get(
     youtube_api_key: impl AsRef<str>,
     id: impl AsRef<str>,
-) -> crate::Result<youtube_dl::SingleVideo> {
+) -> Result<AudioMetadata, Error> {
     let params = [
         ("part", "snippet"),
         ("type", "video"),
@@ -171,10 +145,10 @@ pub async fn get(
     let a: VideoResult = match serde_json::from_slice(&buf) {
         Ok(r) => r,
         Err(err) => {
-            let err = if let Ok(err) = YouTubeError::from_slice(&buf) {
+            let err = if let Ok(err) = Error::from_slice(&buf) {
                 err
             } else {
-                YouTubeError {
+                Error {
                     code: 0,
                     message: err.to_string(),
                 }
@@ -198,7 +172,7 @@ async fn test_get() {
 pub async fn search(
     youtube_api_key: impl AsRef<str>,
     keyword: impl AsRef<str>,
-) -> crate::Result<Vec<Metadata>> {
+) -> Result<Vec<AudioMetadata>, Error> {
     let params = [
         ("part", "snippet"),
         ("type", "video"),
@@ -217,10 +191,10 @@ pub async fn search(
     let a: SearchResult = match serde_json::from_slice(&buf) {
         Ok(r) => r,
         Err(err) => {
-            let err = if let Ok(err) = YouTubeError::from_slice(&buf) {
+            let err = if let Ok(err) = Error::from_slice(&buf) {
                 err.into()
             } else {
-                YouTubeError {
+                Error {
                     code: 0,
                     message: err.to_string(),
                 }
@@ -230,40 +204,40 @@ pub async fn search(
         }
     };
 
+    Ok(a.items.into_iter().map(Into::into).collect())
+
     // println!("{a:#?}");
 
-    let r = a
-        .items
-        .into_iter()
-        .map(|item| {
-            // let date = if let Some(d) = item.snippet.published_at {
-            //     Some(d)
-            // } else {
-            //     item.snippet.publish_time
-            // };
+    // let r = a
+    //     .items
+    //     .into_iter()
+    //     .map(|item| {
+    //         // let date = if let Some(d) = item.snippet.published_at {
+    //         //     Some(d)
+    //         // } else {
+    //         //     item.snippet.publish_time
+    //         // };
 
-            let date = item.snippet.published_at;
+    //         let date = item.snippet.published_at;
 
-            Metadata {
-                track: None,
-                artist: None, /* Some(item.snippet.channel_title) */
-                title: Some(item.snippet.title),
-                source_url: Some(format!(
-                    "https://www.youtube.com/watch?v={}",
-                    item.id.video_id
-                )),
-                date: Some(date),
-                channel: Some(item.snippet.channel_title),
-                channels: None,
-                start_time: None,
-                duration: None,
-                sample_rate: None,
-                thumbnail: None,
-            }
-        })
-        .collect();
-
-    Ok(r)
+    //         Metadata {
+    //             track: None,
+    //             artist: None, /* Some(item.snippet.channel_title) */
+    //             title: Some(item.snippet.title),
+    //             source_url: Some(format!(
+    //                 "https://www.youtube.com/watch?v={}",
+    //                 item.id.video_id
+    //             )),
+    //             date: Some(date),
+    //             channel: Some(item.snippet.channel_title),
+    //             channels: None,
+    //             start_time: None,
+    //             duration: None,
+    //             sample_rate: None,
+    //             thumbnail: None,
+    //         }
+    //     })
+    //     .collect();
 }
 
 #[cfg(test)]

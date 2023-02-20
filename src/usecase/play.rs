@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use serenity::{
-    model::id::{ChannelId, GuildId, MessageId, UserId},
+    model::id::{ChannelId, GuildId, MessageId},
     prelude::{Context, Mutex},
 };
 use songbird::{
@@ -9,19 +9,16 @@ use songbird::{
     tracks::{PlayMode, TrackError},
     Call,
 };
-use tokio::sync::mpsc::Sender;
 
 use crate::{
     audio::AudioSource,
+    audio::{ytdl, AudioMetadata},
     cfg::Cfg,
-    event::Event,
     store::{HistoryKind, Store},
-    ytdl,
+    track::Track,
 };
 
-use super::Track;
-
-pub async fn get_voice_handler(
+async fn get_voice_handler(
     ctx: &Context,
     guild_id: GuildId,
     channel_id: ChannelId,
@@ -35,27 +32,13 @@ pub async fn get_voice_handler(
 
 pub async fn play(
     ctx: &Context,
-    event_tx: Sender<(Context, Event)>,
     guild_id: GuildId,
     voice_channel_id: ChannelId,
-    user_id: UserId,
     url: &str,
     volume: Option<f32>,
-) -> crate::Result<(youtube_dl::SingleVideo, f32)> {
+) -> crate::Result<(AudioMetadata, f32, Option<MessageId>)> {
     let handler = get_voice_handler(ctx, guild_id, voice_channel_id).await?;
     let mut handler = handler.lock().await;
-
-    /* let track = if url.contains("soundcloud.com") {
-        todo!()
-    } else {
-        /* if url.contains("youtube.com") || url.contains("youtu.be") */
-    }; */
-
-    /* let source = if url.contains("youtube.com") || url.contains("youtu.be") {
-        songbird::input::ytdl(url).await?
-    } else {
-        songbird::input::ytdl_search(url).await?
-    }; */
 
     let uid = ytdl::parse_vid(url.parse().unwrap());
 
@@ -85,7 +68,7 @@ pub async fn play(
         let cfg = x.get::<Cfg>().unwrap();
         AudioSource::from_youtube(&uid, cfg.youtube_account(), &cfg.youtube_api_key).await?
     };
-    let audio_metadata = audio_source.youtube_metadata().unwrap().clone();
+    let audio_metadata = audio_source.metadata().unwrap().clone();
 
     let mut source = audio_source.get_source().await?;
     let mut track = handler.play_only_source(source);
@@ -133,16 +116,10 @@ pub async fn play(
         }
     }
 
-    log::info!("url = {}", audio_metadata.webpage_url.as_ref().unwrap());
+    log::info!("url = {}", audio_metadata.url);
     log::info!("volume = {}", volume);
 
     x.insert::<Track>(Track(uid, track));
 
-    let event = Event::Play(audio_metadata.clone(), volume, user_id, prev_message_id);
-
-    if let Err(err) = event_tx.send((ctx.clone(), event)).await {
-        panic!("closed event channel: {}", err)
-    }
-
-    Ok((audio_metadata, volume))
+    Ok((audio_metadata.clone(), volume, prev_message_id))
 }

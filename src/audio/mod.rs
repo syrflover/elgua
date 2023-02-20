@@ -1,17 +1,20 @@
 pub mod cache;
+pub mod metadata;
 pub mod source;
+pub mod ytdl;
+
+pub use metadata::AudioMetadata;
 
 use std::io;
 
 use songbird::input::{self, Input};
 use youtube_dl::YoutubeDl;
 
-use crate::ytdl;
-
 use self::cache::AudioCache;
 
 pub const YTDL: &str = "./yt-dlp";
 pub const YTDL_CACHE: &str = "./cache/youtube";
+pub const SCDL_CACHE: &str = "./cache/soundcloud";
 
 #[derive(Debug, thiserror::Error)]
 pub enum AudioSourceError {
@@ -21,12 +24,15 @@ pub enum AudioSourceError {
     #[error("io: {0}")]
     IoError(#[from] io::Error),
 
+    #[error("youtube_api: {0}")]
+    YouTubeApiError(#[from] ytdl::Error),
+
     #[error("must be video url")]
     MustSingleVideo,
 }
 
 pub enum AudioSource {
-    YouTube(youtube_dl::SingleVideo),
+    YouTube(AudioMetadata),
     SoundCloud,
 }
 
@@ -56,16 +62,38 @@ impl AudioSource {
                 .await
                 .unwrap()
                 .into_single_video()
+                .map(Into::into)
                 .ok_or(AudioSourceError::MustSingleVideo)?
         } else {
             // FIXME: error
-            ytdl::get(api_key, id).await.unwrap()
+            ytdl::get(api_key, id).await?
         };
 
         Ok(Self::YouTube(x))
     }
 
-    pub fn youtube_metadata(&self) -> Option<&youtube_dl::SingleVideo> {
+    // pub async fn from_soundcloud(url: &str) -> Result<Self, AudioSourceError> {
+    //     let x = if !AudioCache::exists(AudioSourceKind::SoundCloud) {
+    //         let mut ytdl = YoutubeDl::new(id.to_string()).to_owned();
+    //         ytdl.youtube_dl_path(YTDL)
+    //             .download(true)
+    //             .format("webm[abr>0]/bestaudio/best")
+    //             .output_directory(YTDL_CACHE)
+    //             .output_template("%(id)s")
+    //             .run_async()
+    //             .await
+    //             .unwrap()
+    //             .into_single_video()
+    //             .map(Into::into)
+    //             .ok_or(AudioSourceError::MustSingleVideo);
+    //     } else {
+    //         unimplemented!()
+    //     };
+
+    //     Ok(Self::SoundCloud)
+    // }
+
+    pub fn metadata(&self) -> Option<&AudioMetadata> {
         match self {
             Self::YouTube(x) => Some(x),
 
@@ -79,15 +107,17 @@ impl AudioSource {
             return Ok(source);
         }
 
-        match self {
-            Self::YouTube(_x) => {
-                // this code is not call
-                // get_source_from_youtube(x.webpage_url.as_deref().unwrap(), self.account())
-                unreachable!()
-            }
+        unimplemented!()
 
-            Self::SoundCloud => unimplemented!("soundcloud not implemented"),
-        }
+        // match self {
+        //     Self::YouTube(_x) => {
+        //         // this code is not call
+        //         // get_source_from_youtube(x.webpage_url.as_deref().unwrap(), self.account())
+        //         unreachable!()
+        //     }
+
+        //     Self::SoundCloud => unimplemented!("soundcloud not implemented"),
+        // }
     }
 
     // fn account(&self) -> Option<(&str, &str)> {

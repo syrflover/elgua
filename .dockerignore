@@ -5,3 +5,4 @@ src/
 migration/
 bin/
 .vscode/
+./yt-dlp

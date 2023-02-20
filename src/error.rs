@@ -1,9 +1,8 @@
 use std::io;
 
-use serde::Deserialize;
 use songbird::{error::JoinError, input, tracks};
 
-use crate::{audio, ytdl};
+use crate::audio::{self, ytdl};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -18,11 +17,6 @@ pub enum Error {
 
     #[error("sqlx::Error {0}")]
     SqlxError(#[from] sqlx::Error),
-
-    // #[error("toshi::ToshiClientError {0}")]
-    // ToshiClientError(#[from] toshi::ToshiClientError),
-    #[error("ToshiError {0}")]
-    ToshiError(#[from] ToshiError),
 
     #[error("serenity::Error {0}")]
     SerenityError(#[from] serenity::Error),
@@ -40,32 +34,36 @@ pub enum Error {
     AudioSourceError(#[from] audio::AudioSourceError),
 
     #[error("youtube_api: {0}")]
-    YouTubeApiError(#[from] ytdl::YouTubeError),
+    YouTubeApiError(#[from] ytdl::Error),
 
     #[error("error: {0}")]
     CustomError(String),
+    // #[error("toshi::ToshiClientError {0}")]
+    // ToshiClientError(#[from] toshi::ToshiClientError),
+    // #[error("ToshiError {0}")]
+    // ToshiError(#[from] ToshiError),
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ToshiError {
-    #[serde(default)]
-    pub status: u16,
-    pub message: String,
-}
+// #[derive(Debug, Deserialize)]
+// pub struct ToshiError {
+//     #[serde(default)]
+//     pub status: u16,
+//     pub message: String,
+// }
 
-impl std::error::Error for ToshiError {}
+// impl std::error::Error for ToshiError {}
 
-impl std::fmt::Display for ToshiError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "status = {}; message = {}", self.status, self.message)
-    }
-}
+// impl std::fmt::Display for ToshiError {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         write!(f, "status = {}; message = {}", self.status, self.message)
+//     }
+// }
 
-impl Default for ToshiError {
-    fn default() -> Self {
-        Self {
-            status: 0,
-            message: "unknown error".to_string(),
-        }
-    }
-}
+// impl Default for ToshiError {
+//     fn default() -> Self {
+//         Self {
+//             status: 0,
+//             message: "unknown error".to_string(),
+//         }
+//     }
+// }
