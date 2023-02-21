@@ -16,7 +16,7 @@ spec:
         - ReadWriteMany
     resources:
         requests:
-            storage: 20Gi
+            storage: 100Gi
     storageClassName: elgua-storage
 ---
 apiVersion: v1
@@ -26,7 +26,7 @@ metadata:
     namespace: bots
 spec:
     capacity:
-        storage: 20Gi
+        storage: 100Gi
     volumeMode: Filesystem
     accessModes:
         - ReadWriteMany

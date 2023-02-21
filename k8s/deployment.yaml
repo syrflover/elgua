@@ -4,6 +4,7 @@ metadata:
     name: elgua
     namespace: bots
 spec:
+    replicas: 1
     selector:
         matchLabels:
             app: elgua
