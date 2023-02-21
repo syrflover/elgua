@@ -4,15 +4,18 @@ use songbird::input::Input;
 
 use tokio::fs::File;
 
-use super::{source::encode_to_source, AudioSource, AudioSourceError, AudioSourceKind, YTDL_CACHE};
+use super::{
+    source::encode_to_source, AudioSource, AudioSourceError, AudioSourceKind, SCDL_CACHE,
+    YTDL_CACHE,
+};
 
 pub struct AudioCache;
 
 impl AudioCache {
-    pub fn exists(kind: AudioSourceKind, id: &str) -> io::Result<bool> {
+    pub fn exists(kind: AudioSourceKind, id: impl AsRef<str>) -> io::Result<bool> {
         let p = match kind {
-            AudioSourceKind::YouTube => format!("{YTDL_CACHE}/{id}"),
-            AudioSourceKind::SoundCloud => unimplemented!("not implemented soundcloud"),
+            AudioSourceKind::YouTube => format!("{YTDL_CACHE}/{}", id.as_ref()),
+            AudioSourceKind::SoundCloud => format!("{SCDL_CACHE}/{}", id.as_ref()),
         };
 
         Path::new(&p).try_exists()
@@ -21,7 +24,7 @@ impl AudioCache {
     pub async fn get_source(audio_source: &AudioSource) -> Result<Option<Input>, AudioSourceError> {
         let filepath = match audio_source {
             AudioSource::YouTube(x) => format!("{YTDL_CACHE}/{}", x.id),
-            AudioSource::SoundCloud => unimplemented!(),
+            AudioSource::SoundCloud(x) => format!("{SCDL_CACHE}/{}", x.id),
         };
 
         let f = match File::open(filepath).await {

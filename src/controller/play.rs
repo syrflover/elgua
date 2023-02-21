@@ -78,10 +78,11 @@ impl From<&MessageComponentInteractionData> for Parameter {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 enum ContentKind {
     YouTubeUrl,
-    YouTubeSearchKeyword,
     SoundCloudUrl,
+    YouTubeSearchKeyword,
 }
 
 impl ContentKind {
@@ -96,15 +97,25 @@ impl ContentKind {
     }
 }
 
+impl From<ContentKind> for usecase::play::PlayableKind {
+    fn from(x: ContentKind) -> Self {
+        match x {
+            ContentKind::YouTubeUrl => usecase::play::PlayableKind::YouTube,
+            ContentKind::SoundCloudUrl => usecase::play::PlayableKind::SoundCloud,
+            _ => unreachable!(),
+        }
+    }
+}
+
 fn is_youtube_url(x: &str) -> bool {
     x.starts_with("https://www.youtube.com/watch")
+        || x.starts_with("https://www.youtube.com/shorts/")
         || x.starts_with("https://www.youtube.com/v/")
         || x.starts_with("https://youtu.be/")
 }
 
-fn is_soundcloud_url(_x: &str) -> bool {
-    // TODO:
-    false
+fn is_soundcloud_url(x: &str) -> bool {
+    x.starts_with("https://soundcloud.com/")
 }
 
 pub async fn play<'a>(
@@ -128,24 +139,27 @@ pub async fn play<'a>(
     let content_kind = ContentKind::new(&keyword);
     let user_id = interaction.user().id;
 
+    log::info!("{content_kind:?}");
+
     match content_kind {
-        ContentKind::YouTubeUrl => {
-            let url = /* if music.starts_with("youtube.com/watch") || music.contains("youtu.be/") {
-                music
-            } else */ if keyword.contains("youtube.com/shorts/") {
+        ContentKind::YouTubeUrl | ContentKind::SoundCloudUrl => {
+            let url = if keyword.contains("youtube.com/shorts/") {
                 keyword.replacen("shorts", "watch", 1)
             } else {
-                keyword.clone()
+                keyword
             };
 
             interaction.send_message(&ctx.http, "재생하는 중").await?;
 
+            let parameter = usecase::play::Parameter::new(content_kind.into(), url.clone(), volume);
             let (audio_metadata, volume, prev_message_id) =
-                usecase::play(ctx, cfg.guild_id, cfg.voice_channel_id, &url, volume).await?;
+                usecase::play(ctx, cfg.guild_id, cfg.voice_channel_id, parameter).await?;
 
             interaction
                 .edit_original_interaction_response(&ctx.http, |edit| {
-                    let play_button = create_play_button(Route::PlayFromClickedButton(url));
+                    let play_button = create_play_button(Route::PlayFromClickedButton(
+                        audio_metadata.url.clone(),
+                    ));
 
                     let action_row = CreateActionRow::default()
                         .add_button(play_button)
@@ -201,8 +215,6 @@ pub async fn play<'a>(
                 })
                 .await?;
         }
-
-        ContentKind::SoundCloudUrl => unimplemented!("not implemented soundcloud"),
     };
 
     Ok(())

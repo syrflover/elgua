@@ -1,6 +1,8 @@
 use chrono::{DateTime, Utc};
 use sqlx::{postgres::PgQueryResult, PgPool, Row};
 
+use crate::audio::AudioSourceKind;
+
 #[derive(Debug, Clone, Copy)]
 pub enum HistoryKind {
     YouTube,
@@ -13,6 +15,15 @@ impl From<String> for HistoryKind {
             "youtube" => Self::YouTube,
             "soundcloud" => Self::SoundCloud,
             _ => unreachable!(),
+        }
+    }
+}
+
+impl From<AudioSourceKind> for HistoryKind {
+    fn from(x: AudioSourceKind) -> Self {
+        match x {
+            AudioSourceKind::YouTube => Self::YouTube,
+            AudioSourceKind::SoundCloud => Self::SoundCloud,
         }
     }
 }

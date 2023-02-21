@@ -25,6 +25,7 @@ async fn main() {
     // 이미 있는 것보다 최신 버전만 받아오도록
     youtube_dl::download_yt_dlp(".").await.unwrap();
     fs::create_dir_all(elgua::audio::YTDL_CACHE).await.unwrap();
+    fs::create_dir_all(elgua::audio::SCDL_CACHE).await.unwrap();
 
     let cfg = Cfg::new();
     let store = Store::connect(&cfg).await;

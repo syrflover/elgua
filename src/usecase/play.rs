@@ -12,7 +12,7 @@ use songbird::{
 
 use crate::{
     audio::AudioSource,
-    audio::{ytdl, AudioMetadata},
+    audio::{scdl, ytdl, AudioMetadata},
     cfg::Cfg,
     store::{HistoryKind, Store},
     track::Track,
@@ -30,26 +30,61 @@ async fn get_voice_handler(
     join_result.map(|_| handler_lock)
 }
 
+pub struct Parameter {
+    url: String,
+    kind: PlayableKind,
+    volume: Option<f32>,
+}
+
+impl Parameter {
+    pub fn new(kind: PlayableKind, url: String, volume: Option<f32>) -> Self {
+        Self { url, kind, volume }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum PlayableKind {
+    YouTube,
+    SoundCloud,
+}
+
+impl From<PlayableKind> for HistoryKind {
+    fn from(x: PlayableKind) -> Self {
+        match x {
+            PlayableKind::YouTube => Self::YouTube,
+            PlayableKind::SoundCloud => Self::SoundCloud,
+        }
+    }
+}
+
 pub async fn play(
     ctx: &Context,
     guild_id: GuildId,
     voice_channel_id: ChannelId,
-    url: &str,
-    volume: Option<f32>,
+    Parameter { url, kind, volume }: Parameter,
 ) -> crate::Result<(AudioMetadata, f32, Option<MessageId>)> {
     let handler = get_voice_handler(ctx, guild_id, voice_channel_id).await?;
     let mut handler = handler.lock().await;
 
-    let uid = ytdl::parse_vid(url.parse().unwrap());
-
     let mut x = ctx.data.write().await;
+
+    let uid = match kind {
+        PlayableKind::YouTube => ytdl::parse_vid(url.parse().unwrap()),
+        PlayableKind::SoundCloud => {
+            let cfg = x.get::<Cfg>().unwrap();
+            scdl::get_track(&cfg.soundcloud_client_id, &url)
+                .await?
+                .id
+                .to_string()
+        }
+    };
 
     let (volume, prev_message_id) = {
         match volume {
             Some(volume) => (volume, None),
             None => {
                 let store = x.get::<Store>().unwrap();
-                let history = store.history().find_one(HistoryKind::YouTube, &uid).await?;
+                let history = store.history().find_one(kind.into(), &uid).await?;
 
                 match history {
                     Some(history) => (
@@ -66,9 +101,16 @@ pub async fn play(
 
     let audio_source = {
         let cfg = x.get::<Cfg>().unwrap();
-        AudioSource::from_youtube(&uid, cfg.youtube_account(), &cfg.youtube_api_key).await?
+        match kind {
+            PlayableKind::YouTube => {
+                AudioSource::from_youtube(&uid, cfg.youtube_account(), &cfg.youtube_api_key).await?
+            }
+            PlayableKind::SoundCloud => {
+                AudioSource::from_soundcloud(&url, &cfg.soundcloud_client_id).await?
+            }
+        }
     };
-    let audio_metadata = audio_source.metadata().unwrap().clone();
+    let audio_metadata = audio_source.metadata().clone();
 
     let mut source = audio_source.get_source().await?;
     let mut track = handler.play_only_source(source);

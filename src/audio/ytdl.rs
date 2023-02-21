@@ -152,8 +152,7 @@ pub async fn get(
                     code: 0,
                     message: err.to_string(),
                 }
-            }
-            .into();
+            };
             return Err(err);
         }
     };
@@ -192,13 +191,12 @@ pub async fn search(
         Ok(r) => r,
         Err(err) => {
             let err = if let Ok(err) = Error::from_slice(&buf) {
-                err.into()
+                err
             } else {
                 Error {
                     code: 0,
                     message: err.to_string(),
                 }
-                .into()
             };
             return Err(err);
         }

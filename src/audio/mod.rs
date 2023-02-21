@@ -1,5 +1,6 @@
 pub mod cache;
 pub mod metadata;
+pub mod scdl;
 pub mod source;
 pub mod ytdl;
 
@@ -27,15 +28,19 @@ pub enum AudioSourceError {
     #[error("youtube_api: {0}")]
     YouTubeApiError(#[from] ytdl::Error),
 
+    #[error("soundcloud_api: {0}")]
+    SoundCloudApiError(#[from] scdl::Error),
+
     #[error("must be video url")]
     MustSingleVideo,
 }
 
 pub enum AudioSource {
     YouTube(AudioMetadata),
-    SoundCloud,
+    SoundCloud(AudioMetadata),
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum AudioSourceKind {
     YouTube,
     SoundCloud,
@@ -54,6 +59,7 @@ impl AudioSource {
                 .format("webm[abr>0]/bestaudio/best")
                 .output_directory(YTDL_CACHE)
                 .output_template("%(id)s");
+
             if let Some((user_email, user_password)) = account.as_ref() {
                 ytdl.auth(user_email, user_password);
             }
@@ -72,32 +78,33 @@ impl AudioSource {
         Ok(Self::YouTube(x))
     }
 
-    // pub async fn from_soundcloud(url: &str) -> Result<Self, AudioSourceError> {
-    //     let x = if !AudioCache::exists(AudioSourceKind::SoundCloud) {
-    //         let mut ytdl = YoutubeDl::new(id.to_string()).to_owned();
-    //         ytdl.youtube_dl_path(YTDL)
-    //             .download(true)
-    //             .format("webm[abr>0]/bestaudio/best")
-    //             .output_directory(YTDL_CACHE)
-    //             .output_template("%(id)s")
-    //             .run_async()
-    //             .await
-    //             .unwrap()
-    //             .into_single_video()
-    //             .map(Into::into)
-    //             .ok_or(AudioSourceError::MustSingleVideo);
-    //     } else {
-    //         unimplemented!()
-    //     };
+    pub async fn from_soundcloud(
+        track_url: &str,
+        client_id: &str,
+    ) -> Result<Self, AudioSourceError> {
+        let track = scdl::get_track(client_id, track_url).await?;
+        let track_id = track.id.to_string();
 
-    //     Ok(Self::SoundCloud)
-    // }
+        if !AudioCache::exists(AudioSourceKind::SoundCloud, track_id)? {
+            let mut ytdl = YoutubeDl::new(track_url).to_owned();
+            ytdl.youtube_dl_path(YTDL)
+                .download(true)
+                .format("webm[abr>0]/bestaudio/best")
+                .output_directory(SCDL_CACHE)
+                .output_template("%(id)s")
+                .run_async()
+                .await
+                .unwrap();
+        }
 
-    pub fn metadata(&self) -> Option<&AudioMetadata> {
+        Ok(Self::SoundCloud(track.into()))
+    }
+
+    pub fn metadata(&self) -> &AudioMetadata {
         match self {
-            Self::YouTube(x) => Some(x),
+            Self::YouTube(x) => x,
 
-            Self::SoundCloud => unimplemented!("soundclound not implemented"),
+            Self::SoundCloud(x) => x,
         }
     }
 

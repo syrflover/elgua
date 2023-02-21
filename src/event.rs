@@ -9,11 +9,11 @@ use serenity::{
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::{
-    audio::{ytdl, AudioMetadata},
+    audio::{AudioMetadata, AudioSourceKind},
     cfg::Cfg,
     component::create_play_button,
     route::Route,
-    store::{History, HistoryKind, Store},
+    store::{History, Store},
 };
 
 #[derive(Debug, Clone)]
@@ -64,8 +64,13 @@ async fn handle(ctx: Context, event: Event) -> crate::Result<()> {
         Event::Play(metadata, volume, user_id, prev_message_id) => {
             let x = ctx.data.read().await;
 
+            let kind = metadata.kind();
             let url = metadata.url;
-            let uid = ytdl::parse_vid(url.parse().unwrap());
+            let uid = metadata.id;
+            let color = match kind {
+                AudioSourceKind::YouTube => 0xFF0000,
+                AudioSourceKind::SoundCloud => 0xF26F23,
+            };
             let now = Utc::now();
 
             // 1. delete prev message
@@ -96,6 +101,7 @@ async fn handle(ctx: Context, event: Event) -> crate::Result<()> {
                     .url(&url)
                     .timestamp(now)
                     .image(metadata.thumbnail_url)
+                    .color(color)
                     .to_owned();
 
                 let play_button = create_play_button(Route::PlayFromClickedButton(url));
@@ -124,7 +130,7 @@ async fn handle(ctx: Context, event: Event) -> crate::Result<()> {
                         message_id: message.map(|x| x.id.0),
                         title: metadata.title.clone(),
                         channel: metadata.uploaded_by,
-                        kind: HistoryKind::YouTube,
+                        kind: kind.into(),
                         uid,
                         user_id: user_id.0,
                         volume: (volume * 100.0) as u8,

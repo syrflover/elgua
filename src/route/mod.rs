@@ -102,6 +102,8 @@ pub async fn route_application_command(
 ) -> crate::Result<()> {
     let options = &interaction.data.options;
 
+    let typing = interaction.channel_id.start_typing(&ctx.http)?;
+
     match interaction.data.name.as_str().try_into().ok() {
         Some(Route::Ping) => {
             // command.channel_id.say(&ctx.http, "pong").await.unwrap();
@@ -126,6 +128,8 @@ pub async fn route_application_command(
         _ => {}
     };
 
+    typing.stop().unwrap_or_default();
+
     Ok(())
 }
 
@@ -133,6 +137,8 @@ pub async fn route_message_component(
     ctx: &Context,
     interaction: &mut MessageComponentInteraction,
 ) -> crate::Result<()> {
+    let typing = interaction.channel_id.start_typing(&ctx.http)?;
+
     match interaction.data.custom_id.as_str().try_into().ok() {
         Some(Route::PlayFromSelectedMenu) => {
             let parameter = controller::play::Parameter::from(&interaction.data);
@@ -141,8 +147,6 @@ pub async fn route_message_component(
             interaction.message.delete(&ctx.http).await?;
 
             controller::play(ctx, interaction.into(), parameter).await?;
-
-            // interaction.defer(&ctx.http).await?;
         }
 
         Some(Route::PlayFromClickedButton(url)) => {
@@ -154,21 +158,23 @@ pub async fn route_message_component(
                 .unwrap()
                 .history_channel_id;
 
-            // play button 메세지를 삭제함
-            interaction.message.delete(&ctx.http).await?;
-
             let parameter = controller::play::Parameter::from(url);
 
             let do_interact = interaction.message.channel_id != history_channel_id;
             let interaction: Interaction = interaction.into();
 
-            controller::play(ctx, interaction.do_interact(do_interact), parameter).await?;
+            if do_interact {
+                // history채널이 아닐때만 play button 메세지를 삭제함
+                interaction.message().unwrap().delete(&ctx.http).await?;
+            }
 
-            // interaction.defer(&ctx.http).await?;
+            controller::play(ctx, interaction.do_interact(do_interact), parameter).await?;
         }
 
         _ => {}
     }
+
+    typing.stop().unwrap_or_default();
 
     Ok(())
 }

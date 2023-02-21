@@ -17,6 +17,7 @@ pub struct Cfg {
     pub youtube_api_key: String,
     pub youtube_user_email: Option<String>,
     pub youtube_user_password: Option<String>,
+    pub soundcloud_client_id: String,
 }
 
 impl Cfg {

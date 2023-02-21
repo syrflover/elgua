@@ -2,7 +2,7 @@ use std::io;
 
 use songbird::{error::JoinError, input, tracks};
 
-use crate::audio::{self, ytdl};
+use crate::audio::{self, scdl, ytdl};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -35,6 +35,9 @@ pub enum Error {
 
     #[error("youtube_api: {0}")]
     YouTubeApiError(#[from] ytdl::Error),
+
+    #[error("soundcloud_api: {0}")]
+    SoundCloudApiError(#[from] scdl::Error),
 
     #[error("error: {0}")]
     CustomError(String),

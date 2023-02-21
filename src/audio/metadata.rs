@@ -1,4 +1,8 @@
-use super::ytdl::{SearchItem, VideoItem};
+use super::{
+    scdl,
+    ytdl::{SearchItem, VideoItem},
+    AudioSourceKind,
+};
 
 #[derive(Debug, Clone)]
 pub struct AudioMetadata {
@@ -7,6 +11,30 @@ pub struct AudioMetadata {
     pub url: String,
     pub thumbnail_url: String,
     pub uploaded_by: String,
+
+    _kind: AudioSourceKind,
+}
+
+impl AudioMetadata {
+    pub fn kind(&self) -> AudioSourceKind {
+        self._kind
+    }
+}
+
+impl From<scdl::Track> for AudioMetadata {
+    fn from(x: scdl::Track) -> Self {
+        Self {
+            id: x.id.to_string(),
+            title: x.title,
+            url: x.permalink_url,
+            thumbnail_url: x
+                .artwork_url
+                .unwrap_or(x.user.avatar_url.unwrap_or_default()), // TODO: default thumbnail
+            uploaded_by: x.user.username,
+
+            _kind: AudioSourceKind::SoundCloud,
+        }
+    }
 }
 
 impl From<youtube_dl::SingleVideo> for AudioMetadata {
@@ -17,6 +45,8 @@ impl From<youtube_dl::SingleVideo> for AudioMetadata {
             url: x.webpage_url.unwrap(),
             thumbnail_url: x.thumbnail.unwrap(),
             uploaded_by: x.channel.unwrap_or("#anonymous#".to_string()),
+
+            _kind: AudioSourceKind::YouTube,
         }
     }
 }
@@ -38,6 +68,8 @@ impl From<VideoItem> for AudioMetadata {
             url,
             thumbnail_url,
             uploaded_by: x.snippet.channel_title,
+
+            _kind: AudioSourceKind::YouTube,
         }
     }
 }
@@ -59,6 +91,8 @@ impl From<SearchItem> for AudioMetadata {
             url,
             thumbnail_url,
             uploaded_by: x.snippet.channel_title,
+
+            _kind: AudioSourceKind::YouTube,
         }
     }
 }

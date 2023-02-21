@@ -54,6 +54,15 @@ impl<'n> Interaction<'n> {
         }
     }
 
+    /// Interaction::MessageComponent일 경우에만 Some
+    pub fn message(&self) -> Option<&'n Message> {
+        match self {
+            // Self::ApplicationCommand(interaction, _) => interaction.message
+            Self::MessageComponent(interaction, _) => Some(&interaction.message),
+            _ => None,
+        }
+    }
+
     pub async fn send_message(
         &self,
         http: impl AsRef<Http>,
