@@ -251,16 +251,22 @@ impl HistoryStore {
         Ok(history)
     }
 
-    pub async fn update_volume(&self, uid: &str, volume: u8) -> sqlx::Result<()> {
+    pub async fn update_volume(
+        &self,
+        kind: HistoryKind,
+        uid: &str,
+        volume: u8,
+    ) -> sqlx::Result<()> {
         let sql = r#"
             UPDATE history
             SET volume = $1
-            WHERE uid = $2
+            WHERE uid = $2 AND kind = $3
         "#;
 
         sqlx::query(sql)
             .bind(volume as i16)
             .bind(uid)
+            .bind(kind.as_str())
             .execute(&self.conn)
             .await?;
 

@@ -5,10 +5,7 @@ use serenity::{
 };
 use songbird::tracks::PlayMode;
 
-use crate::{
-    store::{HistoryKind, Store},
-    track::Track,
-};
+use crate::{store::Store, track::Track};
 
 pub async fn volume(
     ctx: &Context,
@@ -17,7 +14,7 @@ pub async fn volume(
 ) -> crate::Result<String> {
     let x = ctx.data.read().await;
 
-    if let Some(Track(uid, track)) = x.get::<Track>() {
+    if let Some(Track(audio_metadata, track)) = x.get::<Track>() {
         let play_state = track
             .get_info()
             .await
@@ -33,7 +30,7 @@ pub async fn volume(
 
             let history = store
                 .history()
-                .find_one(HistoryKind::YouTube, uid)
+                .find_one(audio_metadata.kind().into(), &audio_metadata.id)
                 .await?
                 .unwrap();
 
@@ -60,7 +57,10 @@ pub async fn volume(
                 }
             }
 
-            store.history().update_volume(uid, volume_u8).await?;
+            store
+                .history()
+                .update_volume(audio_metadata.kind().into(), &audio_metadata.id, volume_u8)
+                .await?;
 
             return Ok(MessageBuilder::new()
                 .push("소리 크기: ")

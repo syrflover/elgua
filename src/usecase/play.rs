@@ -161,7 +161,7 @@ pub async fn play(
     log::info!("url = {}", audio_metadata.url);
     log::info!("volume = {}", volume);
 
-    x.insert::<Track>(Track(uid, track));
+    x.insert::<Track>(Track(audio_metadata.clone(), track));
 
     Ok((audio_metadata.clone(), volume, prev_message_id))
 }
