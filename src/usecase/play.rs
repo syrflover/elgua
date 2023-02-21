@@ -102,11 +102,9 @@ pub async fn play(
     let audio_source = {
         let cfg = x.get::<Cfg>().unwrap();
         match kind {
-            PlayableKind::YouTube => {
-                AudioSource::from_youtube(&uid, cfg.youtube_account(), &cfg.youtube_api_key).await?
-            }
+            PlayableKind::YouTube => AudioSource::from_youtube(&cfg.youtube_api_key, &uid).await?,
             PlayableKind::SoundCloud => {
-                AudioSource::from_soundcloud(&url, &cfg.soundcloud_client_id).await?
+                AudioSource::from_soundcloud(&cfg.soundcloud_client_id, &url).await?
             }
         }
     };

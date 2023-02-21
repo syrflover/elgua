@@ -24,9 +24,6 @@ pub enum Error {
     #[error("reqwest: {0}")]
     ReqwestError(#[from] reqwest::Error),
 
-    #[error("youtube-dl: {0}")]
-    YoutubeDlError(#[from] youtube_dl::Error),
-
     #[error("io: {0}")]
     IoError(#[from] io::Error),
 

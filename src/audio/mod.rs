@@ -25,6 +25,9 @@ pub enum AudioSourceError {
     #[error("io: {0}")]
     IoError(#[from] io::Error),
 
+    #[error("youtube_dl: {0}")]
+    YouTubeDlError(#[from] youtube_dl::Error),
+
     #[error("youtube_api: {0}")]
     YouTubeApiError(#[from] ytdl::Error),
 
@@ -47,31 +50,23 @@ pub enum AudioSourceKind {
 }
 
 impl AudioSource {
-    pub async fn from_youtube(
-        id: &str,
-        account: Option<(String, String)>,
-        api_key: &str,
-    ) -> Result<Self, AudioSourceError> {
+    pub async fn from_youtube(api_key: &str, id: &str) -> Result<Self, AudioSourceError> {
         let x = if !AudioCache::exists(AudioSourceKind::YouTube, id)? {
             let mut ytdl = YoutubeDl::new(id.to_string()).to_owned();
             ytdl.youtube_dl_path(YTDL)
                 .download(true)
                 .format("webm[abr>0]/bestaudio/best")
                 .output_directory(YTDL_CACHE)
-                .output_template("%(id)s");
-
-            if let Some((user_email, user_password)) = account.as_ref() {
-                ytdl.auth(user_email, user_password);
-            }
+                .output_template("%(id)s")
+                .extra_arg("--concurrent-fragments")
+                .extra_arg("2");
 
             ytdl.run_async()
-                .await
-                .unwrap()
+                .await?
                 .into_single_video()
                 .map(Into::into)
                 .ok_or(AudioSourceError::MustSingleVideo)?
         } else {
-            // FIXME: error
             ytdl::get(api_key, id).await?
         };
 
@@ -79,22 +74,22 @@ impl AudioSource {
     }
 
     pub async fn from_soundcloud(
-        track_url: &str,
         client_id: &str,
+        track_url: &str,
     ) -> Result<Self, AudioSourceError> {
         let track = scdl::get_track(client_id, track_url).await?;
         let track_id = track.id.to_string();
 
         if !AudioCache::exists(AudioSourceKind::SoundCloud, track_id)? {
-            let mut ytdl = YoutubeDl::new(track_url).to_owned();
-            ytdl.youtube_dl_path(YTDL)
+            YoutubeDl::new(track_url)
+                .to_owned()
+                .youtube_dl_path(YTDL)
                 .download(true)
                 .format("webm[abr>0]/bestaudio/best")
                 .output_directory(SCDL_CACHE)
                 .output_template("%(id)s")
                 .run_async()
-                .await
-                .unwrap();
+                .await?;
         }
 
         Ok(Self::SoundCloud(track.into()))
@@ -114,7 +109,7 @@ impl AudioSource {
             return Ok(source);
         }
 
-        unimplemented!()
+        unreachable!()
 
         // match self {
         //     Self::YouTube(_x) => {
