@@ -63,6 +63,15 @@ impl<'n> Interaction<'n> {
         }
     }
 
+    pub async fn defer(&self, http: impl AsRef<Http>) -> Result<(), serenity::Error> {
+        match self {
+            Self::ApplicationCommand(interact, true) => interact.defer(http).await,
+            Self::MessageComponent(interact, true) => interact.defer(http).await,
+
+            _ => Ok(()),
+        }
+    }
+
     pub async fn send_message(
         &self,
         http: impl AsRef<Http>,
