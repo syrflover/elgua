@@ -9,7 +9,7 @@ use serenity::{
 };
 
 use crate::{
-    audio::ytdl,
+    audio::{scdl, ytdl},
     cfg::Cfg,
     component::{create_numbering_select_menu, create_play_button},
     event::{Event, EventSender},
@@ -87,9 +87,9 @@ enum ContentKind {
 
 impl ContentKind {
     pub fn new(x: &str) -> Self {
-        if is_youtube_url(x) {
+        if ytdl::is_youtube_url(x) {
             Self::YouTubeUrl
-        } else if is_soundcloud_url(x) {
+        } else if scdl::is_soundcloud_url(x) {
             Self::SoundCloudUrl
         } else {
             Self::YouTubeSearchKeyword
@@ -105,17 +105,6 @@ impl From<ContentKind> for usecase::play::PlayableKind {
             _ => unreachable!(),
         }
     }
-}
-
-fn is_youtube_url(x: &str) -> bool {
-    x.starts_with("https://www.youtube.com/watch")
-        || x.starts_with("https://www.youtube.com/shorts/")
-        || x.starts_with("https://www.youtube.com/v/")
-        || x.starts_with("https://youtu.be/")
-}
-
-fn is_soundcloud_url(x: &str) -> bool {
-    x.starts_with("https://soundcloud.com/")
 }
 
 pub async fn play<'a>(

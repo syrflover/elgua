@@ -121,6 +121,13 @@ struct YouTuneErrorWrapper {
     pub error: Error,
 }
 
+pub fn is_youtube_url(x: &str) -> bool {
+    x.starts_with("https://www.youtube.com/watch")
+        || x.starts_with("https://www.youtube.com/shorts/")
+        || x.starts_with("https://www.youtube.com/v/")
+        || x.starts_with("https://youtu.be/")
+}
+
 pub async fn get(
     youtube_api_key: impl AsRef<str>,
     id: impl AsRef<str>,

@@ -61,12 +61,12 @@ async fn handle(ctx: Context, event: Event) -> crate::Result<()> {
 
     match event {
         // 재생하고나서 history channel에 매세지 보냄
-        Event::Play(metadata, volume, user_id, prev_message_id) => {
+        Event::Play(audio_metadata, volume, user_id, prev_message_id) => {
             let x = ctx.data.read().await;
 
-            let kind = metadata.kind();
-            let url = metadata.url;
-            let uid = metadata.id;
+            let kind = audio_metadata.kind();
+            let url = audio_metadata.url;
+            let uid = audio_metadata.id;
             let color = match kind {
                 AudioSourceKind::YouTube => 0xFF0000,
                 AudioSourceKind::SoundCloud => 0xF26F23,
@@ -95,12 +95,12 @@ async fn handle(ctx: Context, event: Event) -> crate::Result<()> {
 
                 let embed = CreateEmbed::default()
                     .set_author(author)
-                    .title(metadata.title.as_str())
-                    .field("채널", &metadata.uploaded_by, true)
+                    .title(audio_metadata.title.as_str())
+                    .field("채널", &audio_metadata.uploaded_by, true)
                     .field("소리 크기", (volume * 100.0) as u8, true)
                     .url(&url)
                     .timestamp(now)
-                    .image(metadata.thumbnail_url)
+                    .image(audio_metadata.thumbnail_url)
                     .color(color)
                     .to_owned();
 
@@ -128,8 +128,8 @@ async fn handle(ctx: Context, event: Event) -> crate::Result<()> {
                     let history = History {
                         id: 0,
                         message_id: message.map(|x| x.id.0),
-                        title: metadata.title.clone(),
-                        channel: metadata.uploaded_by,
+                        title: audio_metadata.title.clone(),
+                        channel: audio_metadata.uploaded_by,
                         kind: kind.into(),
                         uid,
                         user_id: user_id.0,

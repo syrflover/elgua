@@ -102,7 +102,7 @@ pub async fn route_application_command(
 ) -> crate::Result<()> {
     let options = &interaction.data.options;
 
-    let typing = interaction.channel_id.start_typing(&ctx.http)?;
+    // let typing = interaction.channel_id.start_typing(&ctx.http)?;
 
     match interaction.data.name.as_str().try_into().ok() {
         Some(Route::Ping) => {
@@ -128,7 +128,7 @@ pub async fn route_application_command(
         _ => {}
     };
 
-    typing.stop().unwrap_or_default();
+    // typing.stop().unwrap_or_default();
 
     Ok(())
 }
@@ -137,7 +137,7 @@ pub async fn route_message_component(
     ctx: &Context,
     interaction: &mut MessageComponentInteraction,
 ) -> crate::Result<()> {
-    let typing = interaction.channel_id.start_typing(&ctx.http)?;
+    // let typing = interaction.channel_id.start_typing(&ctx.http)?;
 
     match interaction.data.custom_id.as_str().try_into().ok() {
         Some(Route::PlayFromSelectedMenu) => {
@@ -174,7 +174,7 @@ pub async fn route_message_component(
         _ => {}
     }
 
-    typing.stop().unwrap_or_default();
+    // typing.stop().unwrap_or_default();
 
     Ok(())
 }
