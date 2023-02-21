@@ -166,6 +166,9 @@ pub async fn route_message_component(
             if do_interact {
                 // history채널이 아닐때만 play button 메세지를 삭제함
                 interaction.message().unwrap().delete(&ctx.http).await?;
+            } else {
+                // history채널일 경우 여기서부터는 더이상 상호작용을 하지 않을 것이기 때문에 끝냄
+                interaction.defer(&ctx.http).await?;
             }
 
             controller::play(ctx, interaction.do_interact(do_interact), parameter).await?;
