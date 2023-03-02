@@ -28,3 +28,4 @@ tokio = { version = "1.25", features = ["macros", "rt-multi-thread", "rt", "sync
 # toshi = { path = "../toshi/toshi-client" }
 openssl = { version = "0.10", features = ["vendored"] }
 youtube_dl = { version = "0.8", features = ["tokio", "downloader"] }
+either = "1.8.1"

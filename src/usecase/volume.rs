@@ -69,5 +69,5 @@ pub async fn volume(
         }
     }
 
-    Ok("재생 중이 아니에요".to_string())
+    Ok("재생 중인 음악이 없어요".to_string())
 }

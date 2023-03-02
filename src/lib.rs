@@ -10,5 +10,6 @@ pub mod route;
 pub mod store;
 pub mod track;
 pub mod usecase;
+pub mod util;
 
 pub type Result<T> = std::result::Result<T, error::Error>;

@@ -22,6 +22,7 @@ use crate::{
 pub struct Parameter {
     keyword: String,
     volume: Option<f32>,
+    repeat_count: Option<usize>,
 }
 
 impl From<String> for Parameter {
@@ -29,6 +30,7 @@ impl From<String> for Parameter {
         Self {
             keyword,
             volume: None,
+            repeat_count: None,
         }
     }
 }
@@ -37,11 +39,10 @@ impl From<&Vec<CommandDataOption>> for Parameter {
     fn from(options: &Vec<CommandDataOption>) -> Self {
         let keyword = {
             let x = options
-                .get(0)
-                .expect("expected str option")
-                .resolved
-                .as_ref()
-                .expect("expected str object");
+                .iter()
+                .find(|x| x.name == "music")
+                .and_then(|x| x.resolved.as_ref())
+                .unwrap();
 
             match x {
                 CommandDataOptionValue::String(st) => st.clone(),
@@ -52,7 +53,10 @@ impl From<&Vec<CommandDataOption>> for Parameter {
         };
 
         let volume = {
-            let x = options.get(1).and_then(|x| x.resolved.as_ref());
+            let x = options
+                .iter()
+                .find(|x| x.name == "volume")
+                .and_then(|x| x.resolved.as_ref());
 
             match x {
                 Some(CommandDataOptionValue::Integer(v)) => Some(*v as f32 / 100.0),
@@ -63,7 +67,26 @@ impl From<&Vec<CommandDataOption>> for Parameter {
             }
         };
 
-        Self { keyword, volume }
+        let repeat_count = {
+            let x = options
+                .iter()
+                .find(|x| x.name == "repeat_count")
+                .and_then(|x| x.resolved.as_ref());
+
+            match x {
+                Some(CommandDataOptionValue::Integer(v)) => Some(*v as usize),
+                None => None,
+                _ => {
+                    unreachable!()
+                }
+            }
+        };
+
+        Self {
+            keyword,
+            volume,
+            repeat_count,
+        }
     }
 }
 
@@ -74,6 +97,7 @@ impl From<&MessageComponentInteractionData> for Parameter {
         Self {
             keyword,
             volume: None,
+            repeat_count: None,
         }
     }
 }
@@ -123,7 +147,11 @@ pub async fn play<'a>(
 
     log::info!("{parameter:?}");
 
-    let Parameter { keyword, volume } = parameter;
+    let Parameter {
+        keyword,
+        volume,
+        repeat_count,
+    } = parameter;
 
     let content_kind = ContentKind::new(&keyword);
     let user_id = interaction.user().id;
@@ -140,7 +168,12 @@ pub async fn play<'a>(
 
             interaction.send_message(&ctx.http, "재생하는 중").await?;
 
-            let parameter = usecase::play::Parameter::new(content_kind.into(), url.clone(), volume);
+            let parameter = usecase::play::Parameter::new(
+                content_kind.into(),
+                url.clone(),
+                volume,
+                repeat_count,
+            );
             let (audio_metadata, volume, prev_message_id) =
                 usecase::play(ctx, cfg.guild_id, cfg.voice_channel_id, parameter).await?;
 
@@ -158,6 +191,8 @@ pub async fn play<'a>(
                         .push_named_link(&audio_metadata.title, &audio_metadata.url)
                         .push("\n소리 크기: ")
                         .push((volume * 100.0) as u8)
+                        .push("\n재생 횟수: ")
+                        .push(repeat_count.unwrap_or(1))
                         .build();
 
                     edit.content(x)

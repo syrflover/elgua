@@ -33,7 +33,7 @@ impl AudioCache {
             Err(err) => return Err(err.into()),
         };
 
-        let source = encode_to_source(f, Vec::new())?;
+        let source = encode_to_source(f).await?;
 
         Ok(Some(source))
     }

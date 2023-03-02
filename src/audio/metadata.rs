@@ -12,6 +12,7 @@ pub struct AudioMetadata {
     pub thumbnail_url: String,
     pub uploaded_by: String,
 
+    // pub duration: Either<Duration, String>,
     _kind: AudioSourceKind,
 }
 
@@ -32,6 +33,7 @@ impl From<scdl::Track> for AudioMetadata {
                 .unwrap_or(x.user.avatar_url.unwrap_or_default()), // TODO: default thumbnail
             uploaded_by: x.user.username,
 
+            // duration: Either::Left(Duration::from_millis(x.duration)),
             _kind: AudioSourceKind::SoundCloud,
         }
     }
@@ -46,6 +48,7 @@ impl From<youtube_dl::SingleVideo> for AudioMetadata {
             thumbnail_url: x.thumbnail.unwrap(),
             uploaded_by: x.channel.unwrap_or("#anonymous#".to_string()),
 
+            // duration: Either::Right(x.duration_string.unwrap()),
             _kind: AudioSourceKind::YouTube,
         }
     }
@@ -69,6 +72,7 @@ impl From<VideoItem> for AudioMetadata {
             thumbnail_url,
             uploaded_by: x.snippet.channel_title,
 
+            // duration: Either::Left(Duration::from_millis(x.file_details.duration_ms)),
             _kind: AudioSourceKind::YouTube,
         }
     }
@@ -92,6 +96,7 @@ impl From<SearchItem> for AudioMetadata {
             thumbnail_url,
             uploaded_by: x.snippet.channel_title,
 
+            // duration: Either::Right("알 수 없음".to_string()),
             _kind: AudioSourceKind::YouTube,
         }
     }

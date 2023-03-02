@@ -147,7 +147,7 @@ pub async fn get(
 
     let buf = resp.bytes().await?;
 
-    // println!("{buf}");
+    // println!("{}", String::from_utf8(buf.to_vec()).unwrap());
 
     let a: VideoResult = match serde_json::from_slice(&buf) {
         Ok(r) => r,
@@ -170,7 +170,9 @@ pub async fn get(
 #[cfg(test)]
 #[tokio::test]
 async fn test_get() {
-    let r = get("", "j5Ejpw9RkzA").await.unwrap();
+    let r = get("AIzaSyDW0CC9RmNDtT4qHdYFqBY9cJO42TDDm6s", "3sdVp4lWI9E")
+        .await
+        .unwrap();
 
     println!("{r:#?}");
 }

@@ -34,11 +34,22 @@ pub struct Parameter {
     url: String,
     kind: PlayableKind,
     volume: Option<f32>,
+    repeat_count: Option<usize>,
 }
 
 impl Parameter {
-    pub fn new(kind: PlayableKind, url: String, volume: Option<f32>) -> Self {
-        Self { url, kind, volume }
+    pub fn new(
+        kind: PlayableKind,
+        url: String,
+        volume: Option<f32>,
+        repeat_count: Option<usize>,
+    ) -> Self {
+        Self {
+            url,
+            kind,
+            volume,
+            repeat_count,
+        }
     }
 }
 
@@ -61,7 +72,12 @@ pub async fn play(
     ctx: &Context,
     guild_id: GuildId,
     voice_channel_id: ChannelId,
-    Parameter { url, kind, volume }: Parameter,
+    Parameter {
+        url,
+        kind,
+        volume,
+        repeat_count,
+    }: Parameter,
 ) -> crate::Result<(AudioMetadata, f32, Option<MessageId>)> {
     let handler = get_voice_handler(ctx, guild_id, voice_channel_id).await?;
     let mut handler = handler.lock().await;
@@ -125,6 +141,10 @@ pub async fn play(
         }
 
         log::debug!("try_count = {try_count}");
+
+        if let Some(repeat_count) = repeat_count {
+            track.loop_for(repeat_count)?;
+        }
 
         try_count += 1;
 

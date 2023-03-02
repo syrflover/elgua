@@ -75,6 +75,7 @@ fn set_commands(commands: &mut CreateApplicationCommands) -> &mut CreateApplicat
                 .description("음악을 재생해요")
                 .create_option(|option| keyword_option(option).required(true))
                 .create_option(|option| volume_option(option).required(false))
+                .create_option(|option| repeat_count(option).required(false))
         })
         // volume
         .create_application_command(|command| {
@@ -83,6 +84,27 @@ fn set_commands(commands: &mut CreateApplicationCommands) -> &mut CreateApplicat
                 .description("재생 중인 음악의 소리 크기를 조절해요")
                 .create_option(|option| volume_option(option).required(true))
         })
+        // stop
+        .create_application_command(|command| {
+            command
+                .name("stop")
+                .description("재생 중인 음악을 중지해요")
+        })
+        // track
+        .create_application_command(|command| {
+            command
+                .name("track")
+                .description("재생 중인 음악의 정보를 가져와요")
+        })
+}
+
+fn keyword_option(
+    option: &mut CreateApplicationCommandOption,
+) -> &mut CreateApplicationCommandOption {
+    option
+        .name("music")
+        .description("음악의 주소 또는 유튜브 검색어를 적어주세요")
+        .kind(CommandOptionType::String)
 }
 
 fn volume_option(
@@ -96,11 +118,13 @@ fn volume_option(
         .max_int_value(100)
 }
 
-fn keyword_option(
+fn repeat_count(
     option: &mut CreateApplicationCommandOption,
 ) -> &mut CreateApplicationCommandOption {
     option
-        .name("music")
-        .description("음악의 주소 또는 유튜브 검색어를 적어주세요")
-        .kind(CommandOptionType::String)
+        .name("repeat_count")
+        .description("반복 재생할 횟수를 설정해 주세요")
+        .kind(CommandOptionType::Integer)
+        .min_int_value(1)
+        .max_int_value(523)
 }

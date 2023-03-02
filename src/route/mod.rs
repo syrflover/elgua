@@ -16,6 +16,8 @@ mod route_constant {
     pub const PING: &str = "ping";
     pub const PLAY: &str = "play";
     pub const VOLUME: &str = "volume";
+    pub const STOP: &str = "stop";
+    pub const TRACK: &str = "track";
     pub const PLAY_FROM_SELECTED_MENU: &str = "play-from-selected-menu";
     pub const PLAY_FROM_CLICKED_BUTTON: &str = "play-from-clicked-button#";
 
@@ -27,6 +29,8 @@ pub enum Route {
     Ping,
     Play,
     Volume,
+    Stop,
+    Track,
     PlayFromSelectedMenu,
     PlayFromClickedButton(String),
 }
@@ -41,6 +45,10 @@ impl Display for Route {
             Play => route_constant::PLAY,
 
             Volume => route_constant::VOLUME,
+
+            Stop => route_constant::STOP,
+
+            Track => route_constant::TRACK,
 
             PlayFromSelectedMenu => route_constant::PLAY_FROM_SELECTED_MENU,
 
@@ -73,6 +81,10 @@ impl TryFrom<&str> for Route {
             route_constant::PLAY => Play,
 
             route_constant::VOLUME => Volume,
+
+            route_constant::STOP => Stop,
+
+            route_constant::TRACK => Track,
 
             route_constant::PLAY_FROM_SELECTED_MENU => PlayFromSelectedMenu,
 
@@ -123,6 +135,14 @@ pub async fn route_application_command(
             let parameter = controller::volume::Parameter::from(options);
 
             controller::volume(ctx, interaction.into(), parameter).await?;
+        }
+
+        Some(Route::Stop) => {
+            controller::stop(ctx, interaction.into()).await?;
+        }
+
+        Some(Route::Track) => {
+            controller::track(ctx, interaction.into()).await?;
         }
 
         _ => {}

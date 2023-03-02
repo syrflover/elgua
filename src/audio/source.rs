@@ -1,10 +1,11 @@
-use std::process::{Child, Command, Stdio};
+use std::process::Stdio;
 
-use songbird::input::{children_to_reader, Codec, Container, Input};
+use songbird::input::{Codec, Container, Input, Reader};
+use tokio::{io::AsyncReadExt, process::Command};
 
 use super::AudioSourceError;
 
-pub fn encode_to_source<T>(a: T, mut children: Vec<Child>) -> Result<Input, AudioSourceError>
+pub async fn encode_to_source<T>(a: T) -> Result<Input, AudioSourceError>
 where
     T: Into<Stdio>,
 {
@@ -20,7 +21,7 @@ where
         "-",
     ];
 
-    let ffmpeg = Command::new("ffmpeg")
+    let mut ffmpeg = Command::new("ffmpeg")
         .arg("-i")
         .arg("-")
         .args(ffmpeg_args)
@@ -29,11 +30,14 @@ where
         .stdout(Stdio::piped())
         .spawn()?;
 
-    children.push(ffmpeg);
+    let mut buf = Vec::new();
+    let mut stdout = ffmpeg.stdout.take().unwrap();
+
+    stdout.read_to_end(&mut buf).await?;
 
     let source = Input::new(
         true,
-        children_to_reader::<f32>(children),
+        Reader::from_memory(buf),
         Codec::FloatPcm,
         Container::Raw,
         None,
