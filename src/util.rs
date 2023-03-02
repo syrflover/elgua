@@ -1,7 +1,7 @@
 pub mod time {
     use std::{fmt::Display, time::Duration};
 
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct Time(pub u64, pub u64, pub u64);
 
     impl Display for Time {

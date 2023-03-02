@@ -32,9 +32,11 @@ pub async fn track(ctx: &Context) -> crate::Result<String> {
                 .push((volume * 100.0) as u8)
                 .push("\n재생 시간: ")
                 .push(position)
-                .push(" - ")
-                .push(position_with_looped)
                 .to_owned();
+
+            if position != position_with_looped {
+                r.push(" - ").push(position_with_looped);
+            }
 
             // match &audio_metadata.duration {
             //     Either::Left(x) => {
@@ -49,13 +51,13 @@ pub async fn track(ctx: &Context) -> crate::Result<String> {
 
             match loops {
                 LoopState::Finite(remaining_play_count) => {
-                    r.push("\n재생 횟수: ").push(remaining_play_count);
+                    r.push("\n남은 재생 횟수: ").push(remaining_play_count);
                     // .push(" / ")
                     // .push(content);
                 }
 
                 LoopState::Infinite => {
-                    r.push("\n재생 횟수: 평생");
+                    r.push("\n남은 재생 횟수: 평생");
                 }
             }
 
