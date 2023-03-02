@@ -3,22 +3,27 @@ kind: Deployment
 metadata:
     name: elgua
     namespace: bots
+    labels:
+        app: elgua
+        component: bot
 spec:
     replicas: 1
     selector:
         matchLabels:
             app: elgua
+            component: bot
     template:
         metadata:
             labels:
                 app: elgua
+                component: bot
         spec:
             containers:
                 - name: elgua
                   image: 192.168.1.230:32000/elgua:latest
                   resources:
                       limits:
-                          memory: 256Mi
+                          memory: 512Mi
                           cpu: 200m
                   volumeMounts:
                       - mountPath: /cache
@@ -30,18 +35,25 @@ spec:
 
 ---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
     name: elgua-pg
     namespace: bots
+    labels:
+        app: elgua
+        component: pg
 spec:
     selector:
         matchLabels:
-            app: elgua-pg
+            app: elgua
+            component: pg
+    serviceName: elgua-pg
+    replicas: 1
     template:
         metadata:
             labels:
-                app: elgua-pg
+                app: elgua
+                component: pg
         spec:
             containers:
                 - name: elgua-pg
@@ -78,7 +90,8 @@ metadata:
 spec:
     type: NodePort
     selector:
-        app: elgua-pg
+        app: elgua
+        component: pg
     ports:
         - port: 5432
           nodePort: 32754
