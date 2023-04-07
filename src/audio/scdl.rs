@@ -10,7 +10,7 @@ pub struct Track {
     pub artwork_url: Option<String>,
     pub permalink_url: String,
     pub duration: u64,
-    pub full_duration: u64,
+    pub full_duration: Option<u64>,
 
     pub user: User,
 }
