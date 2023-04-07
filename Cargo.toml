@@ -22,7 +22,7 @@ songbird = { version = "0.3" }
 sqlx = { version = "0.6", features = ["offline", "postgres", "uuid", "chrono", "runtime-tokio-rustls"] }
 # tantivy = "0.18.0"
 thiserror = "1.0"
-tokio = { version = "1.25", features = ["macros", "rt-multi-thread", "rt", "sync", "signal", "process", "fs"] }
+tokio = { version = "1.27", features = ["macros", "rt-multi-thread", "rt", "sync", "signal", "process", "fs"] }
 # toshi = { git = "https://github.com/toshi-search/Toshi", rev = "2caf73e" }
 # toshi = { git = "https://github.com/syrflover/Toshi", branch = "ko" }
 # toshi = { path = "../toshi/toshi-client" }
