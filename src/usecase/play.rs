@@ -14,7 +14,7 @@ use crate::{
     audio::AudioSource,
     audio::{scdl, ytdl, AudioMetadata},
     cfg::Cfg,
-    store::{HistoryKind, Store},
+    store::{CfgKey, HistoryKind, Store},
     track::Track,
 };
 
@@ -88,10 +88,15 @@ pub async fn play(
         PlayableKind::YouTube => ytdl::parse_vid(url.parse().unwrap()),
         PlayableKind::SoundCloud => {
             let cfg = x.get::<Cfg>().unwrap();
-            scdl::get_track(&cfg.soundcloud_client_id, &url)
-                .await?
-                .id
-                .to_string()
+            let store = x.get::<Store>().unwrap();
+
+            let sc_client_id = store.elgua_cfg().get(CfgKey::SoundCloudApiKey).await?;
+            let sc_client_id = match sc_client_id.as_deref() {
+                Some(r) => r,
+                None => &cfg.soundcloud_client_id,
+            };
+
+            scdl::get_track(sc_client_id, &url).await?.id.to_string()
         }
     };
 
@@ -120,7 +125,16 @@ pub async fn play(
         match kind {
             PlayableKind::YouTube => AudioSource::from_youtube(&cfg.youtube_api_key, &uid).await?,
             PlayableKind::SoundCloud => {
-                AudioSource::from_soundcloud(&cfg.soundcloud_client_id, &url).await?
+                let cfg = x.get::<Cfg>().unwrap();
+                let store = x.get::<Store>().unwrap();
+
+                let sc_client_id = store.elgua_cfg().get(CfgKey::SoundCloudApiKey).await?;
+                let sc_client_id = match sc_client_id.as_deref() {
+                    Some(r) => r,
+                    None => &cfg.soundcloud_client_id,
+                };
+
+                AudioSource::from_soundcloud(sc_client_id, &url).await?
             }
         }
     };

@@ -1,6 +1,7 @@
 use std::fmt::Display;
 use std::str::FromStr;
 
+use serenity::model::prelude::interaction::application_command::CommandDataOptionValue;
 use serenity::model::prelude::interaction::{
     application_command::ApplicationCommandInteraction,
     message_component::MessageComponentInteraction,
@@ -8,7 +9,9 @@ use serenity::model::prelude::interaction::{
 
 use serenity::prelude::Context;
 
+use crate::audio::scdl;
 use crate::cfg::Cfg;
+use crate::store::{CfgKey, Store};
 
 use super::{controller, interaction::Interaction};
 
@@ -20,6 +23,8 @@ mod route_constant {
     pub const TRACK: &str = "track";
     pub const PLAY_FROM_SELECTED_MENU: &str = "play-from-selected-menu";
     pub const PLAY_FROM_CLICKED_BUTTON: &str = "play-from-clicked-button#";
+
+    pub const UPDATE_SC_API_KEY: &str = "sc";
 
     // pub const DEPRECATED_PLAY_FROM_SELECTED_MENU: &str = "play-yt-select-0";
     pub const DEPRECATED_PLAY_FROM_CLICKED_BUTTON: &str = "play-yt-button-0;";
@@ -33,6 +38,8 @@ pub enum Route {
     Track,
     PlayFromSelectedMenu,
     PlayFromClickedButton(String),
+
+    UpdateScApiKey,
 }
 
 impl Display for Route {
@@ -55,6 +62,8 @@ impl Display for Route {
             PlayFromClickedButton(url) => {
                 return write!(f, "{}{url}", route_constant::PLAY_FROM_CLICKED_BUTTON)
             }
+
+            UpdateScApiKey => route_constant::UPDATE_SC_API_KEY,
         };
 
         f.write_str(x)
@@ -87,6 +96,8 @@ impl TryFrom<&str> for Route {
             route_constant::TRACK => Track,
 
             route_constant::PLAY_FROM_SELECTED_MENU => PlayFromSelectedMenu,
+
+            route_constant::UPDATE_SC_API_KEY => UpdateScApiKey,
 
             // route_constant::DEPRECATED_PLAY_FROM_SELECTED_MENU => PlayFromSelectedMenu,
             x if x.starts_with(route_constant::PLAY_FROM_CLICKED_BUTTON) => {
@@ -143,6 +154,51 @@ pub async fn route_application_command(
 
         Some(Route::Track) => {
             controller::track(ctx, interaction.into()).await?;
+        }
+
+        Some(Route::UpdateScApiKey) => {
+            let sc_api_key = {
+                let opt = interaction
+                    .data
+                    .options
+                    .get(0)
+                    .unwrap()
+                    .resolved
+                    .as_ref()
+                    .unwrap();
+
+                match opt {
+                    CommandDataOptionValue::String(x) => x.clone(),
+                    _ => unreachable!(),
+                }
+            };
+
+            let interaction: Interaction = interaction.into();
+
+            let x = ctx.data.read().await;
+            let store = x.get::<Store>().unwrap();
+
+            let is_valid = scdl::get_track(
+                &sc_api_key,
+                "https://soundcloud.com/user-675880115/ofdxfd?si=276d5de5c87845e79de2e620e2f4aa40",
+            )
+            .await
+            .is_ok();
+
+            if is_valid {
+                store
+                    .elgua_cfg()
+                    .add_or_update(CfgKey::SoundCloudApiKey, sc_api_key)
+                    .await?;
+
+                interaction
+                    .send_ephemeral_message(&ctx.http, "업데이트 성공")
+                    .await?;
+            } else {
+                interaction
+                    .send_ephemeral_message(&ctx.http, "업데이트 실패")
+                    .await?;
+            }
         }
 
         _ => {}

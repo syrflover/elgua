@@ -96,6 +96,19 @@ fn set_commands(commands: &mut CreateApplicationCommands) -> &mut CreateApplicat
                 .name("track")
                 .description("재생 중인 음악의 정보를 가져와요")
         })
+        // sc
+        .create_application_command(|command| {
+            command
+                .name("sc")
+                .description("SoundCloud Api Key를 업데이트 합니다")
+                .create_option(|option| {
+                    option
+                        .name("sc_api_key")
+                        .description("SoundCloud Api Key")
+                        .kind(CommandOptionType::String)
+                        .required(true)
+                })
+        })
 }
 
 fn keyword_option(

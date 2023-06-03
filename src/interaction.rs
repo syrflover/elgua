@@ -72,6 +72,17 @@ impl<'n> Interaction<'n> {
         }
     }
 
+    pub async fn send_ephemeral_message(
+        &self,
+        http: impl AsRef<Http>,
+        m: impl ToString,
+    ) -> serenity::Result<()> {
+        self.create_interaction_response(http, |resp| {
+            resp.interaction_response_data(|message| message.content(m).ephemeral(true))
+        })
+        .await
+    }
+
     pub async fn send_message(
         &self,
         http: impl AsRef<Http>,
