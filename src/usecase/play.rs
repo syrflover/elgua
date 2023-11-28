@@ -34,7 +34,7 @@ pub struct Parameter {
     url: String,
     kind: PlayableKind,
     volume: Option<f32>,
-    repeat_count: Option<usize>,
+    play_count: Option<usize>,
 }
 
 impl Parameter {
@@ -42,13 +42,13 @@ impl Parameter {
         kind: PlayableKind,
         url: String,
         volume: Option<f32>,
-        repeat_count: Option<usize>,
+        play_count: Option<usize>,
     ) -> Self {
         Self {
             url,
             kind,
             volume,
-            repeat_count,
+            play_count,
         }
     }
 }
@@ -76,7 +76,7 @@ pub async fn play(
         url,
         kind,
         volume,
-        repeat_count,
+        play_count,
     }: Parameter,
 ) -> crate::Result<(AudioMetadata, f32, Option<MessageId>)> {
     let handler = get_voice_handler(ctx, guild_id, voice_channel_id).await?;
@@ -84,7 +84,7 @@ pub async fn play(
 
     let mut x = ctx.data.write().await;
 
-    let is_repeat = repeat_count.unwrap_or(1) >= 2;
+    let is_repeat = play_count.unwrap_or(1) >= 2;
 
     let uid = match kind {
         PlayableKind::YouTube => ytdl::parse_vid(url.parse().unwrap()),
@@ -158,8 +158,8 @@ pub async fn play(
 
         log::debug!("try_count = {try_count}");
 
-        if let Some(repeat_count) = repeat_count {
-            track.loop_for(repeat_count)?;
+        if let Some(play_count) = play_count {
+            track.loop_for(play_count)?;
         }
 
         try_count += 1;

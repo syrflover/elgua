@@ -22,7 +22,7 @@ use crate::{
 pub struct Parameter {
     keyword: String,
     volume: Option<f32>,
-    repeat_count: Option<usize>,
+    play_count: Option<usize>,
 }
 
 impl From<String> for Parameter {
@@ -30,7 +30,7 @@ impl From<String> for Parameter {
         Self {
             keyword,
             volume: None,
-            repeat_count: None,
+            play_count: None,
         }
     }
 }
@@ -67,10 +67,10 @@ impl From<&Vec<CommandDataOption>> for Parameter {
             }
         };
 
-        let repeat_count = {
+        let play_count = {
             let x = options
                 .iter()
-                .find(|x| x.name == "repeat_count")
+                .find(|x| x.name == "play_count")
                 .and_then(|x| x.resolved.as_ref());
 
             match x {
@@ -85,7 +85,7 @@ impl From<&Vec<CommandDataOption>> for Parameter {
         Self {
             keyword,
             volume,
-            repeat_count,
+            play_count,
         }
     }
 }
@@ -97,7 +97,7 @@ impl From<&MessageComponentInteractionData> for Parameter {
         Self {
             keyword,
             volume: None,
-            repeat_count: None,
+            play_count: None,
         }
     }
 }
@@ -150,7 +150,7 @@ pub async fn play<'a>(
     let Parameter {
         keyword,
         volume,
-        repeat_count,
+        play_count,
     } = parameter;
 
     let content_kind = ContentKind::new(&keyword);
@@ -168,12 +168,8 @@ pub async fn play<'a>(
 
             interaction.send_message(&ctx.http, "재생하는 중").await?;
 
-            let parameter = usecase::play::Parameter::new(
-                content_kind.into(),
-                url.clone(),
-                volume,
-                repeat_count,
-            );
+            let parameter =
+                usecase::play::Parameter::new(content_kind.into(), url.clone(), volume, play_count);
             let (audio_metadata, volume, prev_message_id) =
                 usecase::play(ctx, cfg.guild_id, cfg.voice_channel_id, parameter).await?;
 
@@ -192,7 +188,7 @@ pub async fn play<'a>(
                         .push("\n소리 크기: ")
                         .push((volume * 100.0) as u8)
                         .push("\n재생 횟수: ")
-                        .push(repeat_count.unwrap_or(1))
+                        .push(play_count.unwrap_or(1))
                         .build();
 
                     edit.content(x)

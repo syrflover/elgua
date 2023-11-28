@@ -75,7 +75,7 @@ fn set_commands(commands: &mut CreateApplicationCommands) -> &mut CreateApplicat
                 .description("음악을 재생해요")
                 .create_option(|option| keyword_option(option).required(true))
                 .create_option(|option| volume_option(option).required(false))
-                .create_option(|option| repeat_count(option).required(false))
+                .create_option(|option| play_count(option).required(false))
         })
         // volume
         .create_application_command(|command| {
@@ -131,12 +131,10 @@ fn volume_option(
         .max_int_value(100)
 }
 
-fn repeat_count(
-    option: &mut CreateApplicationCommandOption,
-) -> &mut CreateApplicationCommandOption {
+fn play_count(option: &mut CreateApplicationCommandOption) -> &mut CreateApplicationCommandOption {
     option
-        .name("repeat_count")
-        .description("반복 재생할 횟수를 설정해 주세요")
+        .name("play_count")
+        .description("재생할 횟수를 설정해 주세요")
         .kind(CommandOptionType::Integer)
         .min_int_value(1)
         .max_int_value(523)
