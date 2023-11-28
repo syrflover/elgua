@@ -22,7 +22,7 @@ fi
 
 chmod +x $BIN
 
-docker build \
+docker buildx build \
     --build-arg BINARY_FILE="$BIN" \
     --build-arg CFG_FILE="cfg.json" \
     --tag "192.168.1.230:32000/elgua:latest" .
