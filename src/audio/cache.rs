@@ -13,9 +13,11 @@ pub struct AudioCache;
 
 impl AudioCache {
     pub fn exists(kind: AudioSourceKind, id: impl AsRef<str>) -> io::Result<bool> {
+        let id = id.as_ref();
+
         let p = match kind {
-            AudioSourceKind::YouTube => format!("{YTDL_CACHE}/{}", id.as_ref()),
-            AudioSourceKind::SoundCloud => format!("{SCDL_CACHE}/{}", id.as_ref()),
+            AudioSourceKind::YouTube => format!("{YTDL_CACHE}/{}", id),
+            AudioSourceKind::SoundCloud => format!("{SCDL_CACHE}/{}", id),
         };
 
         Path::new(&p).try_exists()

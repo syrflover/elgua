@@ -49,17 +49,32 @@ pub enum AudioSourceKind {
     SoundCloud,
 }
 
+pub fn starts_with_invalid_char(x: &str) -> bool {
+    x.starts_with(['-'])
+}
+
 impl AudioSource {
     pub async fn from_youtube(api_key: &str, id: &str) -> Result<Self, AudioSourceError> {
         let x = if !AudioCache::exists(AudioSourceKind::YouTube, id)? {
-            let mut ytdl = YoutubeDl::new(id.to_string()).to_owned();
+            let starts_with_invalid_char = starts_with_invalid_char(id);
+
+            let mut ytdl = YoutubeDl::new(if starts_with_invalid_char {
+                // format!("ytsearch:{id}")
+                format!("https://youtu.be/{id}")
+            } else {
+                id.to_string()
+            })
+            .to_owned();
+
             ytdl.youtube_dl_path(YTDL)
-                .download(true)
+                // .download(true)
                 .format("webm[abr>0]/bestaudio/best")
-                .output_directory(YTDL_CACHE)
+                // .output_directory(YTDL_CACHE)
                 .output_template("%(id)s")
                 .extra_arg("--concurrent-fragments")
                 .extra_arg("2");
+
+            ytdl.download_to_async(YTDL_CACHE).await?;
 
             ytdl.run_async()
                 .await?
@@ -80,15 +95,15 @@ impl AudioSource {
         let track = scdl::get_track(client_id, track_url).await?;
         let track_id = track.id.to_string();
 
-        if !AudioCache::exists(AudioSourceKind::SoundCloud, track_id)? {
-            YoutubeDl::new(track_url)
-                .to_owned()
-                .youtube_dl_path(YTDL)
-                .download(true)
+        if !AudioCache::exists(AudioSourceKind::SoundCloud, &track_id)? {
+            let mut ytdl = YoutubeDl::new(track_url).to_owned();
+
+            ytdl.youtube_dl_path(YTDL)
+                // .download(true)
                 .format("webm[abr>0]/bestaudio/best")
-                .output_directory(SCDL_CACHE)
+                // .output_directory(SCDL_CACHE)
                 .output_template("%(id)s")
-                .run_async()
+                .download_to_async(SCDL_CACHE)
                 .await?;
         }
 
@@ -98,7 +113,6 @@ impl AudioSource {
     pub fn metadata(&self) -> &AudioMetadata {
         match self {
             Self::YouTube(x) => x,
-
             Self::SoundCloud(x) => x,
         }
     }

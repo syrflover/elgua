@@ -19,13 +19,27 @@ serde_qs = "0.11"
 serenity = { version = "0.11", features = ["voice"] }
 simple_logger = "4.0"
 songbird = { version = "0.3" }
-sqlx = { version = "0.6", features = ["offline", "postgres", "uuid", "chrono", "runtime-tokio-rustls"] }
+sqlx = { version = "0.6", features = [
+    "offline",
+    "postgres",
+    "uuid",
+    "chrono",
+    "runtime-tokio-rustls",
+] }
 # tantivy = "0.18.0"
 thiserror = "1.0"
-tokio = { version = "1.27", features = ["macros", "rt-multi-thread", "rt", "sync", "signal", "process", "fs"] }
+tokio = { version = "1.27", features = [
+    "macros",
+    "rt-multi-thread",
+    "rt",
+    "sync",
+    "signal",
+    "process",
+    "fs",
+] }
 # toshi = { git = "https://github.com/toshi-search/Toshi", rev = "2caf73e" }
 # toshi = { git = "https://github.com/syrflover/Toshi", branch = "ko" }
 # toshi = { path = "../toshi/toshi-client" }
 openssl = { version = "0.10", features = ["vendored"] }
-youtube_dl = { version = "0.8", features = ["tokio", "downloader"] }
+youtube_dl = { version = "0.9", features = ["downloader-rustls-tls"] }
 either = "1.8.1"
