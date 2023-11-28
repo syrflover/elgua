@@ -84,6 +84,8 @@ pub async fn play(
 
     let mut x = ctx.data.write().await;
 
+    let is_repeat = repeat_count.unwrap_or(1) >= 2;
+
     let uid = match kind {
         PlayableKind::YouTube => ytdl::parse_vid(url.parse().unwrap()),
         PlayableKind::SoundCloud => {
@@ -140,7 +142,7 @@ pub async fn play(
     };
     let audio_metadata = audio_source.metadata().clone();
 
-    let mut source = audio_source.get_source().await?;
+    let mut source = audio_source.get_source(is_repeat).await?;
     let mut track = handler.play_only_source(source);
 
     let mut try_count = 0;
@@ -182,7 +184,7 @@ pub async fn play(
             PlayMode::Play => break,
 
             PlayMode::End => {
-                source = audio_source.get_source().await?;
+                source = audio_source.get_source(is_repeat).await?;
                 track = handler.play_only_source(source);
             }
 

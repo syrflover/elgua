@@ -23,7 +23,10 @@ impl AudioCache {
         Path::new(&p).try_exists()
     }
 
-    pub async fn get_source(audio_source: &AudioSource) -> Result<Option<Input>, AudioSourceError> {
+    pub async fn get_source(
+        audio_source: &AudioSource,
+        to_memory: bool,
+    ) -> Result<Option<Input>, AudioSourceError> {
         let filepath = match audio_source {
             AudioSource::YouTube(x) => format!("{YTDL_CACHE}/{}", x.id),
             AudioSource::SoundCloud(x) => format!("{SCDL_CACHE}/{}", x.id),
@@ -35,7 +38,7 @@ impl AudioCache {
             Err(err) => return Err(err.into()),
         };
 
-        let source = encode_to_source(f).await?;
+        let source = encode_to_source(f, to_memory).await?;
 
         Ok(Some(source))
     }

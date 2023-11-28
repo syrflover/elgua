@@ -1,11 +1,11 @@
 use std::process::Stdio;
 
-use songbird::input::{Codec, Container, Input, Reader};
-use tokio::{io::AsyncReadExt, process::Command};
+use songbird::input::{children_to_reader, Codec, Container, Input, Reader};
+use tokio::io::AsyncReadExt;
 
 use super::AudioSourceError;
 
-pub async fn encode_to_source<T>(a: T) -> Result<Input, AudioSourceError>
+pub async fn encode_to_source<T>(a: T, to_memory: bool) -> Result<Input, AudioSourceError>
 where
     T: Into<Stdio>,
 {
@@ -21,27 +21,46 @@ where
         "-",
     ];
 
-    let mut ffmpeg = Command::new("ffmpeg")
-        .arg("-i")
-        .arg("-")
-        .args(ffmpeg_args)
-        .stdin(a)
-        .stderr(Stdio::null())
-        .stdout(Stdio::piped())
-        .spawn()?;
+    let source = if to_memory {
+        let mut ffmpeg = tokio::process::Command::new("ffmpeg")
+            .arg("-i")
+            .arg("-")
+            .args(ffmpeg_args)
+            .stdin(a)
+            .stderr(Stdio::null())
+            .stdout(Stdio::piped())
+            .spawn()?;
 
-    let mut buf = Vec::new();
-    let mut stdout = ffmpeg.stdout.take().unwrap();
+        let mut buf = Vec::new();
+        let mut stdout = ffmpeg.stdout.take().unwrap();
 
-    stdout.read_to_end(&mut buf).await?;
+        stdout.read_to_end(&mut buf).await?;
 
-    let source = Input::new(
-        true,
-        Reader::from_memory(buf),
-        Codec::FloatPcm,
-        Container::Raw,
-        None,
-    );
+        Input::new(
+            true,
+            Reader::from_memory(buf),
+            Codec::FloatPcm,
+            Container::Raw,
+            None,
+        )
+    } else {
+        let ffmpeg = std::process::Command::new("ffmpeg")
+            .arg("-i")
+            .arg("-")
+            .args(ffmpeg_args)
+            .stdin(a)
+            .stderr(Stdio::null())
+            .stdout(Stdio::piped())
+            .spawn()?;
+
+        Input::new(
+            true,
+            children_to_reader::<f32>(vec![ffmpeg]),
+            Codec::FloatPcm,
+            Container::Raw,
+            None,
+        )
+    };
 
     Ok(source)
 }

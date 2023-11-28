@@ -117,8 +117,8 @@ impl AudioSource {
         }
     }
 
-    pub async fn get_source(&self) -> Result<Input, AudioSourceError> {
-        let cached_source = AudioCache::get_source(self).await?;
+    pub async fn get_source(&self, to_memory: bool) -> Result<Input, AudioSourceError> {
+        let cached_source = AudioCache::get_source(self, to_memory).await?;
         if let Some(source) = cached_source {
             return Ok(source);
         }
