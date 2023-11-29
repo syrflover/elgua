@@ -72,6 +72,8 @@ pub async fn get_track(client_id: &str, track_url: &str) -> Result<Track, Error>
         track_url.to_string()
     };
 
+    // println!("{}", track_url);
+
     let params = [("client_id", client_id), ("url", &track_url)];
 
     let resp = reqwest::Client::new()

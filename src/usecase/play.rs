@@ -89,16 +89,20 @@ pub async fn play(
     let uid = match kind {
         PlayableKind::YouTube => ytdl::parse_vid(url.parse().unwrap()),
         PlayableKind::SoundCloud => {
-            let cfg = x.get::<Cfg>().unwrap();
-            let store = x.get::<Store>().unwrap();
+            if url.starts_with("https://api-v2.soundcloud.com/tracks/") {
+                url.replace("https://api-v2.soundcloud.com/tracks/", "")
+            } else {
+                let cfg = x.get::<Cfg>().unwrap();
+                let store = x.get::<Store>().unwrap();
 
-            let sc_client_id = store.elgua_cfg().get(CfgKey::SoundCloudApiKey).await?;
-            let sc_client_id = match sc_client_id.as_deref() {
-                Some(r) => r,
-                None => &cfg.soundcloud_client_id,
-            };
+                let sc_client_id = store.elgua_cfg().get(CfgKey::SoundCloudApiKey).await?;
+                let sc_client_id = match sc_client_id.as_deref() {
+                    Some(r) => r,
+                    None => &cfg.soundcloud_client_id,
+                };
 
-            scdl::get_track(sc_client_id, &url).await?.id.to_string()
+                scdl::get_track(sc_client_id, &url).await?.id.to_string()
+            }
         }
     };
 

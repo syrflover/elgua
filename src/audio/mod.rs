@@ -107,14 +107,20 @@ impl AudioSource {
             ..
         }: History,
     ) -> Self {
-        let kind = match kind {
-            HistoryKind::YouTube => AudioSourceKind::YouTube,
-            HistoryKind::SoundCloud => AudioSourceKind::SoundCloud,
+        let (kind, url) = match kind {
+            HistoryKind::YouTube => (
+                AudioSourceKind::YouTube,
+                format!("https://youtu.be/{}", uid),
+            ),
+            HistoryKind::SoundCloud => (
+                AudioSourceKind::SoundCloud,
+                format!("https://api-v2.soundcloud.com/tracks/{}", uid),
+            ),
         };
         let metadata = AudioMetadata {
             id: uid,
             title,
-            url: "".to_owned(),
+            url,
             thumbnail_url: "".to_owned(),
             uploaded_by: channel,
             duration: None,
@@ -136,11 +142,14 @@ impl AudioSource {
 
     pub async fn get_source(&self, to_memory: bool) -> Result<Input, AudioSourceError> {
         let cached_source = AudioCache::get_source(self, to_memory).await?;
-        if let Some(source) = cached_source {
-            return Ok(source);
-        }
 
-        unreachable!()
+        match cached_source {
+            Some(source) => Ok(source),
+            None => Err(AudioSourceError::IoError(io::Error::new(
+                io::ErrorKind::NotFound,
+                "캐싱된 영상을 찾을 수 없습니다",
+            ))),
+        }
 
         // match self {
         //     Self::YouTube(_x) => {
