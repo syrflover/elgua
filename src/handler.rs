@@ -6,6 +6,7 @@ use serenity::{
 
 use crate::{
     cfg::Cfg,
+    interaction::Interaction,
     route::{route_application_command, route_message_component},
 };
 
@@ -18,33 +19,34 @@ impl EventHandler for Handler {
         ctx: Context,
         interaction: serenity::model::application::interaction::Interaction,
     ) {
-        use serenity::model::application::interaction::Interaction;
+        use serenity::model::application::interaction::Interaction::*;
 
         match interaction {
-            Interaction::ApplicationCommand(interaction) => {
+            ApplicationCommand(interaction) => {
                 if let Err(err) = route_application_command(&ctx, &interaction).await {
                     log::error!("{err:?}");
+
+                    let interaction = Interaction::ApplicationCommand(&interaction, true);
 
                     interaction
                         .edit_original_interaction_response(&ctx.http, |message| {
                             message
-                                .content(err)
+                                .content(&err)
                                 .components(|c| c.set_action_rows(Default::default()))
                         })
                         .await
-                        .unwrap();
+                        .ok();
                 }
             }
 
-            Interaction::MessageComponent(mut interaction) => {
+            MessageComponent(mut interaction) => {
                 if let Err(err) = route_message_component(&ctx, &mut interaction).await {
                     log::error!("{err:?}");
 
+                    let interaction = Interaction::MessageComponent(&interaction, true);
+
                     interaction
-                        .message
-                        .edit(&ctx.http, |message| {
-                            message.content(err).set_components(Default::default())
-                        })
+                        .send_ephemeral_message(&ctx.http, &err)
                         .await
                         .ok();
                 }
