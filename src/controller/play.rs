@@ -92,12 +92,20 @@ impl From<&Vec<CommandDataOption>> for Parameter {
 
 impl From<&MessageComponentInteractionData> for Parameter {
     fn from(data: &MessageComponentInteractionData) -> Self {
-        let keyword = data.values.get(0).cloned().unwrap();
+        let x = data.values.get(0).cloned().unwrap();
 
-        Self {
-            keyword,
-            volume: None,
-            play_count: None,
+        if let Ok((volume, play_count, keyword)) = serde_json::from_str(&x) {
+            Self {
+                keyword,
+                volume,
+                play_count,
+            }
+        } else {
+            Self {
+                keyword: x,
+                volume: None,
+                play_count: None,
+            }
         }
     }
 }
@@ -210,9 +218,13 @@ pub async fn play<'a>(
             interaction
                 .edit_original_interaction_response(&ctx.http, |edit| {
                     // title, channel_name, url
-                    let select_menu_items = searched_videos
-                        .into_iter()
-                        .map(|x| (x.title, x.uploaded_by, x.url));
+                    let select_menu_items = searched_videos.into_iter().map(|x| {
+                        (
+                            x.title,
+                            x.uploaded_by,
+                            serde_json::to_string(&(volume, play_count, x.url)).unwrap(),
+                        )
+                    });
 
                     let select_menu = create_numbering_select_menu(
                         Route::PlayFromSelectedMenu,
