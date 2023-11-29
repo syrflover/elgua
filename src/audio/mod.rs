@@ -55,7 +55,7 @@ pub fn starts_with_invalid_char(x: &str) -> bool {
 
 impl AudioSource {
     pub async fn from_youtube(api_key: &str, id: &str) -> Result<Self, AudioSourceError> {
-        let x = if !AudioCache::exists(AudioSourceKind::YouTube, id)? {
+        if !AudioCache::exists(AudioSourceKind::YouTube, id)? {
             let starts_with_invalid_char = starts_with_invalid_char(id);
 
             let mut ytdl = YoutubeDl::new(if starts_with_invalid_char {
@@ -67,23 +67,13 @@ impl AudioSource {
             .to_owned();
 
             ytdl.youtube_dl_path(YTDL)
-                // .download(true)
                 .format("webm[abr>0]/bestaudio/best")
-                // .output_directory(YTDL_CACHE)
                 .output_template("%(id)s")
-                .extra_arg("--concurrent-fragments")
-                .extra_arg("2");
+                .download_to_async(YTDL_CACHE)
+                .await?;
+        }
 
-            ytdl.download_to_async(YTDL_CACHE).await?;
-
-            ytdl.run_async()
-                .await?
-                .into_single_video()
-                .map(Into::into)
-                .ok_or(AudioSourceError::MustSingleVideo)?
-        } else {
-            ytdl::get(api_key, id).await?
-        };
+        let x = ytdl::get(api_key, id).await?;
 
         Ok(Self::YouTube(x))
     }

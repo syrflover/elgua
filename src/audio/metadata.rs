@@ -43,21 +43,6 @@ impl From<scdl::Track> for AudioMetadata {
     }
 }
 
-impl From<youtube_dl::SingleVideo> for AudioMetadata {
-    fn from(x: youtube_dl::SingleVideo) -> Self {
-        Self {
-            id: x.id,
-            title: x.title.unwrap(),
-            url: x.webpage_url.unwrap(),
-            thumbnail_url: x.thumbnail.unwrap(),
-            uploaded_by: x.channel.unwrap_or("#anonymous#".to_string()),
-
-            duration: x.duration.and_then(|x| x.as_u64()).map(Duration::from_secs),
-            _kind: AudioSourceKind::YouTube,
-        }
-    }
-}
-
 impl From<VideoItem> for AudioMetadata {
     fn from(x: VideoItem) -> Self {
         let url = format!("https://www.youtube.com/watch?v={}", x.id);
