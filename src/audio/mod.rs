@@ -58,19 +58,17 @@ impl AudioSource {
         if !AudioCache::exists(AudioSourceKind::YouTube, id)? {
             let starts_with_invalid_char = starts_with_invalid_char(id);
 
-            let mut ytdl = YoutubeDl::new(if starts_with_invalid_char {
+            YoutubeDl::new(if starts_with_invalid_char {
                 // format!("ytsearch:{id}")
                 format!("https://youtu.be/{id}")
             } else {
                 id.to_string()
             })
-            .to_owned();
-
-            ytdl.youtube_dl_path(YTDL)
-                .format("webm[abr>0]/bestaudio/best")
-                .output_template("%(id)s")
-                .download_to_async(YTDL_CACHE)
-                .await?;
+            .youtube_dl_path(YTDL)
+            .format("webm[abr>0]/bestaudio/best")
+            .output_template("%(id)s")
+            .download_to_async(YTDL_CACHE)
+            .await?;
         }
 
         let x = ytdl::get(api_key, id).await?;
@@ -86,12 +84,10 @@ impl AudioSource {
         let track_id = track.id.to_string();
 
         if !AudioCache::exists(AudioSourceKind::SoundCloud, &track_id)? {
-            let mut ytdl = YoutubeDl::new(track_url).to_owned();
-
-            ytdl.youtube_dl_path(YTDL)
-                // .download(true)
+            YoutubeDl::new(track_url)
+                .to_owned()
+                .youtube_dl_path(YTDL)
                 .format("webm[abr>0]/bestaudio/best")
-                // .output_directory(SCDL_CACHE)
                 .output_template("%(id)s")
                 .download_to_async(SCDL_CACHE)
                 .await?;
