@@ -49,4 +49,83 @@ pub mod time {
 
         Time(hours, minutes, seconds)
     }
+
+    pub fn parse_iso8601_duration(x: &str) -> Option<Duration> {
+        // PT#H#M#S
+        // P#DT#H#M#S
+
+        let Some(x) = x.strip_prefix("PT").or(x.strip_prefix('P')) else {
+            return None;
+        };
+
+        fn pos(x: Option<(u64, usize)>) -> usize {
+            match x {
+                Some((_, pos)) => pos,
+                None => 0,
+            }
+        }
+
+        fn value(x: Option<(u64, usize)>) -> u64 {
+            match x {
+                Some((r, _)) => r,
+                None => 0,
+            }
+        }
+
+        fn parse_dates(x: &str) -> Option<(u64, usize)> {
+            let pos = x.chars().position(|c| c == 'D')?;
+
+            x[..pos].parse().ok().map(|r| (r, pos + 2))
+        }
+
+        fn parse_hours(x: &str) -> Option<(u64, usize)> {
+            let pos = x.chars().position(|c| c == 'H')?;
+
+            x[..pos].parse().ok().map(|r| (r, pos + 1))
+        }
+
+        fn parse_minutes(x: &str) -> Option<(u64, usize)> {
+            let pos = x.chars().position(|c| c == 'M')?;
+
+            x[..pos].parse().ok().map(|r| (r, pos + 1))
+        }
+
+        fn parse_seconds(x: &str) -> Option<(u64, usize)> {
+            let pos = x.chars().position(|c| c == 'S')?;
+
+            x[..pos].parse().ok().map(|r| (r, pos + 1))
+        }
+
+        let dates = parse_dates(x);
+
+        let x = &x[pos(dates)..];
+
+        let hours = parse_hours(x);
+
+        let x = &x[pos(hours)..];
+
+        let minutes = parse_minutes(x);
+
+        let x = &x[pos(minutes)..];
+
+        let seconds = parse_seconds(x);
+
+        Some(Duration::from_secs(
+            value(seconds)
+                + value(minutes) * 60
+                + value(hours) * 60 * 60
+                + value(dates) * 60 * 60 * 24,
+        ))
+    }
+
+    #[test]
+    fn test_parse_iso8601_duration() {
+        let x = parse_iso8601_duration("P12DT22H45M23S").unwrap();
+
+        assert_eq!(x, Duration::from_secs(1_036_800 + 79_200 + 2_700 + 23));
+
+        let x = parse_iso8601_duration("PT17H33M").unwrap();
+
+        assert_eq!(x, Duration::from_secs(61_200 + 1_980));
+    }
 }

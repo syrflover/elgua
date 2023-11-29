@@ -48,7 +48,7 @@ pub struct SearchItem {
 pub struct VideoItem {
     pub id: String,
     pub snippet: Snippet,
-    // pub file_details: FileDetail,
+    pub content_details: ContentDetail,
 }
 
 #[derive(Debug, Deserialize)]
@@ -68,8 +68,13 @@ pub struct Thumbnail {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FileDetail {
-    pub duration_ms: u64,
+pub struct ContentDetail {
+    /// iso8601
+    ///
+    /// PT#M#S, PT#H#M#S, P#DT#H#M#S
+    ///
+    /// .e.g, P1DT23H11M1S
+    pub duration: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -133,7 +138,7 @@ pub async fn get(
     id: impl AsRef<str>,
 ) -> Result<AudioMetadata, Error> {
     let params = [
-        ("part", "snippet"),
+        ("part", "snippet,id,contentDetails"),
         ("type", "video"),
         ("key", youtube_api_key.as_ref()),
         ("id", id.as_ref()),

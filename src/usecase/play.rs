@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use serenity::{
     model::id::{ChannelId, GuildId, MessageId},
@@ -141,6 +141,23 @@ pub async fn play(
         }
     };
     let audio_metadata = audio_source.metadata().clone();
+
+    log::debug!("{:?}", audio_metadata);
+
+    if is_repeat {
+        if let Some(duration) = audio_metadata.duration {
+            const M10: u64 = 10 * 60;
+            if duration > Duration::from_secs(M10) {
+                return Err(crate::error::Error::CustomError(
+                    "10분 이상의 음악은 반복 재생할 수 없습니다".to_owned(),
+                ));
+            }
+        } else {
+            return Err(crate::error::Error::CustomError(
+                "기술적인 문제로 재생 시간을 알 수 없는 음악은 반복 재생할 수 없습니다".to_owned(),
+            ));
+        }
+    }
 
     let mut source = audio_source.get_source(is_repeat).await?;
     let mut track = handler.play_only_source(source);
