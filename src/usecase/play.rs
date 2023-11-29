@@ -120,8 +120,6 @@ pub async fn play(
         }
     };
 
-    handler.stop();
-
     let audio_source = {
         let cfg = x.get::<Cfg>().unwrap();
         match kind {
@@ -142,8 +140,6 @@ pub async fn play(
     };
     let audio_metadata = audio_source.metadata().clone();
 
-    log::debug!("{:?}", audio_metadata);
-
     if is_repeat {
         if let Some(duration) = audio_metadata.duration {
             const M10: u64 = 10 * 60;
@@ -160,6 +156,9 @@ pub async fn play(
     }
 
     let mut source = audio_source.get_source(is_repeat).await?;
+
+    handler.stop();
+
     let mut track = handler.play_only_source(source);
 
     let mut try_count = 0;
