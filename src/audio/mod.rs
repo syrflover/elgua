@@ -11,6 +11,8 @@ use std::io;
 use songbird::input::{self, Input};
 use youtube_dl::YoutubeDl;
 
+use crate::store::{History, HistoryKind};
+
 use self::cache::AudioCache;
 
 pub const YTDL: &str = "./yt-dlp";
@@ -94,6 +96,35 @@ impl AudioSource {
         }
 
         Ok(Self::SoundCloud(track.into()))
+    }
+
+    pub fn from_history(
+        History {
+            title,
+            channel,
+            kind,
+            uid,
+            ..
+        }: History,
+    ) -> Self {
+        let kind = match kind {
+            HistoryKind::YouTube => AudioSourceKind::YouTube,
+            HistoryKind::SoundCloud => AudioSourceKind::SoundCloud,
+        };
+        let metadata = AudioMetadata {
+            id: uid,
+            title,
+            url: "".to_owned(),
+            thumbnail_url: "".to_owned(),
+            uploaded_by: channel,
+            duration: None,
+            _kind: kind,
+        };
+
+        match kind {
+            AudioSourceKind::YouTube => AudioSource::YouTube(metadata),
+            AudioSourceKind::SoundCloud => AudioSource::SoundCloud(metadata),
+        }
     }
 
     pub fn metadata(&self) -> &AudioMetadata {

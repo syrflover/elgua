@@ -17,7 +17,7 @@ pub struct AudioMetadata {
     pub uploaded_by: String,
 
     pub duration: Option<Duration>,
-    _kind: AudioSourceKind,
+    pub(super) _kind: AudioSourceKind,
 }
 
 impl AudioMetadata {

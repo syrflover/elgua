@@ -137,11 +137,12 @@ pub async fn get(
     youtube_api_key: impl AsRef<str>,
     id: impl AsRef<str>,
 ) -> Result<AudioMetadata, Error> {
+    let id = id.as_ref();
     let params = [
         ("part", "snippet,id,contentDetails"),
         ("type", "video"),
         ("key", youtube_api_key.as_ref()),
-        ("id", id.as_ref()),
+        ("id", id),
     ];
 
     let resp = reqwest::Client::new()
@@ -169,7 +170,10 @@ pub async fn get(
         }
     };
 
-    Ok(a.items.into_iter().next().unwrap().into())
+    a.items.into_iter().next().map(Into::into).ok_or(Error {
+        code: 404,
+        message: "영상을 찾을 수 없습니다".to_owned(),
+    })
 }
 
 #[cfg(test)]

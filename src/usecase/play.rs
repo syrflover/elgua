@@ -12,7 +12,7 @@ use songbird::{
 
 use crate::{
     audio::AudioSource,
-    audio::{scdl, ytdl, AudioMetadata},
+    audio::{scdl, ytdl, AudioMetadata, AudioSourceError},
     cfg::Cfg,
     store::{CfgKey, HistoryKind, Store},
     track::Track,
@@ -102,28 +102,29 @@ pub async fn play(
         }
     };
 
+    let history = {
+        let store = x.get::<Store>().unwrap();
+        store.history().find_one(kind.into(), &uid).await?
+    };
+
     let (volume, prev_message_id) = {
         match volume {
             Some(volume) => (volume, None),
-            None => {
-                let store = x.get::<Store>().unwrap();
-                let history = store.history().find_one(kind.into(), &uid).await?;
-
-                match history {
-                    Some(history) => (
-                        history.volume as f32 / 100.0,
-                        history.message_id.map(MessageId),
-                    ),
-                    None => (0.05, None),
-                }
-            }
+            None => match &history {
+                Some(history) => (
+                    history.volume as f32 / 100.0,
+                    history.message_id.map(MessageId),
+                ),
+                None => (0.05, None),
+            },
         }
     };
 
     let audio_source = {
         let cfg = x.get::<Cfg>().unwrap();
-        match kind {
-            PlayableKind::YouTube => AudioSource::from_youtube(&cfg.youtube_api_key, &uid).await?,
+
+        let r = match kind {
+            PlayableKind::YouTube => AudioSource::from_youtube(&cfg.youtube_api_key, &uid).await,
             PlayableKind::SoundCloud => {
                 let cfg = x.get::<Cfg>().unwrap();
                 let store = x.get::<Store>().unwrap();
@@ -134,7 +135,22 @@ pub async fn play(
                     None => &cfg.soundcloud_client_id,
                 };
 
-                AudioSource::from_soundcloud(sc_client_id, &url).await?
+                AudioSource::from_soundcloud(sc_client_id, &url).await
+            }
+        };
+
+        match r {
+            Ok(r) => r,
+            Err(err) => {
+                let is_api_error = matches!(
+                    err,
+                    AudioSourceError::YouTubeApiError(_) | AudioSourceError::SoundCloudApiError(_)
+                );
+
+                match (history, is_api_error) {
+                    (Some(history), true) => AudioSource::from_history(history),
+                    _ => return Err(err.into()),
+                }
             }
         }
     };
