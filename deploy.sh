@@ -22,16 +22,18 @@ fi
 
 chmod +x $BIN
 
-docker buildx build \
+docker build \
+    --platform linux/amd64 \
     --build-arg BINARY_FILE="$BIN" \
     --build-arg CFG_FILE="cfg.json" \
-    --tag "192.168.1.230:32000/elgua:latest" .
+    --tag "192.168.1.21:32000/elgua:latest" \
+    --load .
 
 if [ $? -ne 0 ]; then
     exit 1
 fi
 
-docker push "192.168.1.230:32000/elgua:latest" &&
+docker push "192.168.1.21:32000/elgua:latest" &&
 # kubectl get "deployment/elgua" &&
 kubectl apply -f k8s/storage -f k8s/deployment.yaml &&
 kubectl rollout restart "deployment/elgua" -n bots

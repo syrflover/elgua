@@ -1,48 +1,48 @@
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-    name: elgua-storage
-    namespace: bots
+  name: elgua-storage
+  namespace: bots
 provisioner: kubernetes.io/no-provisioner
 volumeBindingMode: WaitForFirstConsumer
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-    name: elgua-pvc
-    namespace: bots
+  name: elgua-pvc
+  namespace: bots
 spec:
-    accessModes:
-        - ReadWriteMany
-    resources:
-        requests:
-            storage: 100Gi
-    storageClassName: elgua-storage
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 30Gi
+  storageClassName: elgua-storage
 ---
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-    name: elgua-pv
-    namespace: bots
+  name: elgua-pv
+  namespace: bots
 spec:
-    capacity:
-        storage: 100Gi
-    volumeMode: Filesystem
-    accessModes:
-        - ReadWriteMany
-    persistentVolumeReclaimPolicy: Retain
-    storageClassName: elgua-storage
-    local:
-        path: /data/elgua
-    nodeAffinity:
-        required:
-            nodeSelectorTerms:
-                - matchExpressions:
-                      # - key: kubernetes.io/hostname
-                      #   operator: In
-                      #   values:
-                      #       - flover
-                      - key: microk8s.io/cluster
-                        operator: In
-                        values:
-                            - "true"
+  capacity:
+    storage: 30Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: elgua-storage
+  local:
+    path: /data/elgua
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - j4105
+            # - key: microk8s.io/cluster
+            #   operator: In
+            #   values:
+            #     - "true"
