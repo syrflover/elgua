@@ -143,7 +143,7 @@ impl HistoryStore {
         .bind(history.volume as i16)
         .bind(history.created_at)
         .bind(history.message_id.map(|x| x as i64))
-        .fetch_one(&mut conn)
+        .fetch_one(&mut *conn)
         .await?;
 
         let id: i64 = r.try_get("id")?;

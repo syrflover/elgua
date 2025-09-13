@@ -9,11 +9,11 @@ pub enum Error {
     #[error("songbird::error::JoinError {0}")]
     JoinError(#[from] JoinError),
 
-    #[error("songbird::input::error::Error {0:?}")]
-    InputError(#[from] input::error::Error),
+    #[error("songbird::input::AudioStreamError {0:?}")]
+    InputError(#[from] input::AudioStreamError),
 
-    #[error("songbird::tracks::TrackError {0}")]
-    TrackError(#[from] tracks::TrackError),
+    #[error("songbird::tracks::ControlError {0}")]
+    TrackError(#[from] tracks::ControlError),
 
     #[error("sqlx::Error {0}")]
     SqlxError(#[from] sqlx::Error),

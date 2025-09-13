@@ -1,153 +1,184 @@
 use serenity::{
-    builder::{CreateInteractionResponse, EditInteractionResponse},
+    all::{
+        ChannelId, CreateInteractionResponseFollowup, CreateInteractionResponseMessage,
+        EditInteractionResponse,
+    },
+    builder::CreateInteractionResponse,
     http::Http,
     model::{
-        prelude::{
-            interaction::{
-                application_command::ApplicationCommandInteraction,
-                message_component::MessageComponentInteraction,
-            },
-            Message,
-        },
+        prelude::{Interaction, Message},
         user::User,
     },
 };
 
-pub enum Interaction<'a> {
-    /// Interaction, 실제 상호작용을 할 것인지
-    ApplicationCommand(&'a ApplicationCommandInteraction, bool),
+#[trait_variant::make]
+pub trait InteractionExtension {
+    async fn send_message(&self, http: &Http, content: impl Into<String>) -> serenity::Result<()>;
 
-    /// Interaction, 실제 상호작용을 할 것인지
-    MessageComponent(&'a MessageComponentInteraction, bool),
+    async fn send_ephemeral_message(
+        &self,
+        http: &Http,
+        content: impl Into<String>,
+    ) -> serenity::Result<()>;
+
+    fn channel_id(&self) -> ChannelId;
+
+    fn message(&self) -> Option<&Message>;
+
+    fn user(&self) -> &User;
+
+    async fn create_response(
+        &self,
+        http: &Http,
+        builder: CreateInteractionResponse,
+    ) -> serenity::Result<()>;
+
+    async fn create_followup(
+        &self,
+        http: &Http,
+        builder: CreateInteractionResponseFollowup,
+    ) -> serenity::Result<Message>;
+
+    async fn edit_response(
+        &self,
+        http: &Http,
+        builder: EditInteractionResponse,
+    ) -> serenity::Result<Message>;
+
+    async fn delete_response(&self, http: &Http) -> serenity::Result<()>;
+
+    async fn defer(&self, http: &Http) -> serenity::Result<()>;
 }
 
-impl<'a> From<&'a ApplicationCommandInteraction> for Interaction<'a> {
-    fn from(interaction: &'a ApplicationCommandInteraction) -> Self {
-        Self::ApplicationCommand(interaction, true)
-    }
-}
-
-impl<'a> From<&'a MessageComponentInteraction> for Interaction<'a> {
-    fn from(interaction: &'a MessageComponentInteraction) -> Self {
-        Self::MessageComponent(interaction, true)
-    }
-}
-
-impl<'a> From<&'a mut MessageComponentInteraction> for Interaction<'a> {
-    fn from(interaction: &'a mut MessageComponentInteraction) -> Self {
-        Self::MessageComponent(interaction, true)
-    }
-}
-
-impl<'n> Interaction<'n> {
-    pub fn do_interact(self, do_interact: bool) -> Self {
+impl InteractionExtension for Interaction {
+    async fn send_message(&self, http: &Http, content: impl Into<String>) -> serenity::Result<()> {
+        let builder = CreateInteractionResponse::Message(
+            CreateInteractionResponseMessage::new().content(content),
+        );
         match self {
-            Self::ApplicationCommand(x, _) => Self::ApplicationCommand(x, do_interact),
-            Self::MessageComponent(x, _) => Self::MessageComponent(x, do_interact),
+            Interaction::Ping(_ping) => Ok(()),
+            Interaction::Autocomplete(_command) => unreachable!(),
+            Interaction::Command(command) => command.create_response(http, builder).await,
+            Interaction::Component(component) => component.create_response(http, builder).await,
+            Interaction::Modal(modal) => modal.create_response(http, builder).await,
+            _ => todo!(),
         }
     }
 
-    pub fn user(&self) -> &'n User {
+    async fn send_ephemeral_message(
+        &self,
+        http: &Http,
+        content: impl Into<String>,
+    ) -> serenity::Result<()> {
+        let builder = CreateInteractionResponse::Message(
+            CreateInteractionResponseMessage::new()
+                .content(content)
+                .ephemeral(true),
+        );
         match self {
-            Self::ApplicationCommand(interaction, _) => &interaction.user,
-            Self::MessageComponent(interaction, _) => &interaction.user,
+            Interaction::Ping(_ping) => Ok(()),
+            Interaction::Autocomplete(_command) => unreachable!(),
+            Interaction::Command(command) => command.create_response(http, builder).await,
+            Interaction::Component(component) => component.create_response(http, builder).await,
+            Interaction::Modal(modal) => modal.create_response(http, builder).await,
+            _ => todo!(),
         }
     }
 
-    /// Interaction::MessageComponent일 경우에만 Some
-    pub fn message(&self) -> Option<&'n Message> {
+    fn channel_id(&self) -> ChannelId {
         match self {
-            // Self::ApplicationCommand(interaction, _) => interaction.message
-            Self::MessageComponent(interaction, _) => Some(&interaction.message),
+            Interaction::Ping(_ping) => unreachable!(),
+            Interaction::Command(command) => command.channel_id,
+            Interaction::Autocomplete(command) => command.channel_id,
+            Interaction::Component(component) => component.channel_id,
+            Interaction::Modal(modal) => modal.channel_id,
+            _ => todo!(),
+        }
+    }
+
+    fn message(&self) -> Option<&Message> {
+        match self {
+            Interaction::Component(component) => Some(&*component.message),
+            Interaction::Modal(modal) => modal.message.as_deref(),
             _ => None,
         }
     }
 
-    pub async fn defer(&self, http: impl AsRef<Http>) -> Result<(), serenity::Error> {
+    fn user(&self) -> &User {
         match self {
-            Self::ApplicationCommand(interact, true) => interact.defer(http).await,
-            Self::MessageComponent(interact, true) => interact.defer(http).await,
-
-            _ => Ok(()),
+            Interaction::Ping(_ping) => unreachable!(),
+            Interaction::Command(command) => &command.user,
+            Interaction::Autocomplete(command) => &command.user,
+            Interaction::Component(component) => &component.user,
+            Interaction::Modal(modal) => &modal.user,
+            _ => todo!(),
         }
     }
 
-    pub async fn send_ephemeral_message(
-        &self,
-        http: impl AsRef<Http>,
-        m: impl ToString,
-    ) -> serenity::Result<()> {
-        self.create_interaction_response(http, |resp| {
-            resp.interaction_response_data(|message| message.content(m).ephemeral(true))
-        })
-        .await
-    }
-
-    pub async fn send_message(
-        &self,
-        http: impl AsRef<Http>,
-        m: impl ToString,
-    ) -> serenity::Result<()> {
-        self.create_interaction_response(http, |resp| {
-            resp.interaction_response_data(|message| message.content(m))
-        })
-        .await
-
-        // match self {
-        //     Self::ApplicationCommand(_) => {
-        //         self.create_interaction_response(http, |resp| {
-        //             resp.interaction_response_data(|message| message.content(m))
-        //         })
-        //         .await
-        //     }
-
-        //     _ => Ok(()),
-        // }
-    }
-
-    pub async fn create_interaction_response<'a, F>(
-        &self,
-        http: impl AsRef<Http>,
-        f: F,
-    ) -> serenity::Result<()>
-    where
-        for<'b> F:
-            FnOnce(&'b mut CreateInteractionResponse<'a>) -> &'b mut CreateInteractionResponse<'a>,
-    {
+    async fn defer(&self, http: &Http) -> serenity::Result<()> {
         match self {
-            Self::ApplicationCommand(interaction, true) => {
-                interaction.create_interaction_response(http, f).await
-            }
-
-            Self::MessageComponent(interaction, true) => {
-                interaction.create_interaction_response(http, f).await
-            }
-
-            _ => Ok(()),
+            Interaction::Ping(_ping) => unreachable!(),
+            Interaction::Command(command) => command.defer(http).await,
+            Interaction::Autocomplete(command) => command.defer(http).await,
+            Interaction::Component(component) => component.defer(http).await,
+            Interaction::Modal(modal) => modal.defer(http).await,
+            _ => todo!(),
         }
     }
 
-    // 실제 상호작용을 했을 때만 Some(message)를 리턴함
-    pub async fn edit_original_interaction_response<F>(
+    async fn create_response(
         &self,
-        http: impl AsRef<Http>,
-        f: F,
-    ) -> serenity::Result<Option<Message>>
-    where
-        F: FnOnce(&mut EditInteractionResponse) -> &mut EditInteractionResponse,
-    {
+        http: &Http,
+        builder: CreateInteractionResponse,
+    ) -> serenity::Result<()> {
         match self {
-            Self::ApplicationCommand(interaction, true) => interaction
-                .edit_original_interaction_response(http, f)
-                .await
-                .map(Some),
+            Interaction::Ping(_ping) => unreachable!(),
+            Interaction::Command(command) => command.create_response(http, builder).await,
+            Interaction::Autocomplete(command) => command.create_response(http, builder).await,
+            Interaction::Component(component) => component.create_response(http, builder).await,
+            Interaction::Modal(modal) => modal.create_response(http, builder).await,
+            _ => todo!(),
+        }
+    }
 
-            Self::MessageComponent(interaction, true) => interaction
-                .edit_original_interaction_response(http, f)
-                .await
-                .map(Some),
+    async fn create_followup(
+        &self,
+        http: &Http,
+        builder: CreateInteractionResponseFollowup,
+    ) -> serenity::Result<Message> {
+        match self {
+            Interaction::Ping(_ping) => unreachable!(),
+            Interaction::Command(command) => command.create_followup(http, builder).await,
+            Interaction::Autocomplete(command) => command.create_followup(http, builder).await,
+            Interaction::Component(component) => component.create_followup(http, builder).await,
+            Interaction::Modal(modal) => modal.create_followup(http, builder).await,
+            _ => todo!(),
+        }
+    }
 
-            _ => Ok(None),
+    async fn edit_response(
+        &self,
+        http: &Http,
+        builder: EditInteractionResponse,
+    ) -> serenity::Result<Message> {
+        match self {
+            Interaction::Ping(_ping) => unreachable!(),
+            Interaction::Command(command) => command.edit_response(http, builder).await,
+            Interaction::Autocomplete(command) => command.edit_response(http, builder).await,
+            Interaction::Component(component) => component.edit_response(http, builder).await,
+            Interaction::Modal(modal) => modal.edit_response(http, builder).await,
+            _ => todo!(),
+        }
+    }
+
+    async fn delete_response(&self, http: &Http) -> serenity::Result<()> {
+        match self {
+            Interaction::Ping(_ping) => unreachable!(),
+            Interaction::Command(command) => command.delete_response(http).await,
+            Interaction::Autocomplete(command) => command.delete_response(http).await,
+            Interaction::Component(component) => component.delete_response(http).await,
+            Interaction::Modal(modal) => modal.delete_response(http).await,
+            _ => todo!(),
         }
     }
 }

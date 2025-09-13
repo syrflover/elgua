@@ -127,7 +127,8 @@ struct YouTuneErrorWrapper {
 }
 
 pub fn is_youtube_url(x: &str) -> bool {
-    x.starts_with("https://www.youtube.com/watch")
+    x.starts_with("https://music.youtube.com/watch")
+        || x.starts_with("https://www.youtube.com/watch")
         || x.starts_with("https://www.youtube.com/shorts/")
         || x.starts_with("https://www.youtube.com/v/")
         || x.starts_with("https://youtu.be/")

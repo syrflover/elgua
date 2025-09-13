@@ -19,7 +19,12 @@ pub struct Cfg {
 
 impl Cfg {
     pub fn new() -> Self {
-        let mut file = File::open("./cfg.json").unwrap();
+        #[cfg(debug_assertions)]
+        const CONFIG_FILE: &str = "./cfg.dev.json";
+        #[cfg(not(debug_assertions))]
+        const CONFIG_FILE: &str = "./cfg.json";
+
+        let mut file = File::open(CONFIG_FILE).unwrap();
 
         let mut cfg_buf = Vec::new();
 

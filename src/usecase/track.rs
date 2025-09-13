@@ -12,7 +12,10 @@ pub async fn track(ctx: &Context) -> crate::Result<String> {
     if let Some(Track(audio_metadata, track)) = x.get::<Track>() {
         let play_info = track.get_info().await.ok();
 
-        let play_state = play_info.map(|x| x.playing).unwrap_or(PlayMode::End);
+        let play_state = play_info
+            .as_ref()
+            .map(|x| x.playing.clone())
+            .unwrap_or(PlayMode::End);
 
         if let PlayMode::Play | PlayMode::Pause = play_state {
             let TrackState {
@@ -29,13 +32,13 @@ pub async fn track(ctx: &Context) -> crate::Result<String> {
             let mut r = MessageBuilder::new()
                 .push_named_link(&audio_metadata.title, &audio_metadata.url)
                 .push("\n소리 크기: ")
-                .push((volume * 100.0) as u8)
+                .push((volume * 100.0).to_string())
                 .push("\n재생 시간: ")
-                .push(position)
+                .push(position.to_string())
                 .to_owned();
 
             if position != position_with_looped {
-                r.push(" - ").push(position_with_looped);
+                r.push(" - ").push(position_with_looped.to_string());
             }
 
             // match &audio_metadata.duration {
@@ -51,7 +54,8 @@ pub async fn track(ctx: &Context) -> crate::Result<String> {
 
             match loops {
                 LoopState::Finite(remaining_play_count) => {
-                    r.push("\n남은 재생 횟수: ").push(remaining_play_count);
+                    r.push("\n남은 재생 횟수: ")
+                        .push(remaining_play_count.to_string());
                     // .push(" / ")
                     // .push(content);
                 }

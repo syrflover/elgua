@@ -1,19 +1,13 @@
-use std::fmt::Display;
 use std::str::FromStr;
 
-use serenity::model::prelude::interaction::application_command::CommandDataOptionValue;
-use serenity::model::prelude::interaction::{
-    application_command::ApplicationCommandInteraction,
-    message_component::MessageComponentInteraction,
-};
-
+use serenity::all::{CommandDataOptionValue, Interaction};
 use serenity::prelude::Context;
 
 use crate::audio::scdl;
-use crate::cfg::Cfg;
+use crate::interaction::InteractionExtension;
 use crate::store::{CfgKey, Store};
 
-use super::{controller, interaction::Interaction};
+use super::controller;
 
 mod route_constant {
     pub const PING: &str = "ping";
@@ -42,11 +36,11 @@ pub enum Route {
     UpdateScApiKey,
 }
 
-impl Display for Route {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl From<Route> for String {
+    fn from(val: Route) -> Self {
         use Route::*;
 
-        let x = match self {
+        match val {
             Ping => route_constant::PING,
 
             Play => route_constant::PLAY,
@@ -60,13 +54,12 @@ impl Display for Route {
             PlayFromSelectedMenu => route_constant::PLAY_FROM_SELECTED_MENU,
 
             PlayFromClickedButton(url) => {
-                return write!(f, "{}{url}", route_constant::PLAY_FROM_CLICKED_BUTTON)
+                return format!("{}{url}", route_constant::PLAY_FROM_CLICKED_BUTTON)
             }
 
             UpdateScApiKey => route_constant::UPDATE_SC_API_KEY,
-        };
-
-        f.write_str(x)
+        }
+        .to_owned()
     }
 }
 
@@ -121,23 +114,24 @@ impl TryFrom<&str> for Route {
 
 pub async fn route_application_command(
     ctx: &Context,
-    interaction: &ApplicationCommandInteraction,
+    interaction: &Interaction,
 ) -> crate::Result<()> {
-    let options = &interaction.data.options;
+    let Interaction::Command(command) = interaction else {
+        return Ok(());
+    };
 
-    // let typing = interaction.channel_id.start_typing(&ctx.http)?;
+    let typing = interaction.channel_id().start_typing(&ctx.http);
+    let options = &command.data.options;
 
-    match interaction.data.name.as_str().try_into().ok() {
+    match command.data.name.as_str().try_into().ok() {
         Some(Route::Ping) => {
-            // command.channel_id.say(&ctx.http, "pong").await.unwrap();
-            let interaction: Interaction = interaction.into();
             interaction.send_message(&ctx.http, "pong").await?;
         }
 
         Some(Route::Play) => {
             let parameter = controller::play::Parameter::from(options);
 
-            controller::play(ctx, interaction.into(), parameter).await?;
+            controller::play(ctx, interaction, parameter).await?;
 
             // interaction.defer(&ctx.http).await?;
         }
@@ -145,35 +139,26 @@ pub async fn route_application_command(
         Some(Route::Volume) => {
             let parameter = controller::volume::Parameter::from(options);
 
-            controller::volume(ctx, interaction.into(), parameter).await?;
+            controller::volume(ctx, interaction, parameter).await?;
         }
 
         Some(Route::Stop) => {
-            controller::stop(ctx, interaction.into()).await?;
+            controller::stop(ctx, interaction).await?;
         }
 
         Some(Route::Track) => {
-            controller::track(ctx, interaction.into()).await?;
+            controller::track(ctx, interaction).await?;
         }
 
         Some(Route::UpdateScApiKey) => {
             let sc_api_key = {
-                let opt = interaction
-                    .data
-                    .options
-                    .get(0)
-                    .unwrap()
-                    .resolved
-                    .as_ref()
-                    .unwrap();
+                let opt = &command.data.options.first().unwrap().value;
 
                 match opt {
                     CommandDataOptionValue::String(x) => x.clone(),
                     _ => unreachable!(),
                 }
             };
-
-            let interaction: Interaction = interaction.into();
 
             let x = ctx.data.read().await;
             let store = x.get::<Store>().unwrap();
@@ -204,56 +189,59 @@ pub async fn route_application_command(
         _ => {}
     };
 
-    // typing.stop().unwrap_or_default();
+    typing.stop();
 
     Ok(())
 }
 
 pub async fn route_message_component(
     ctx: &Context,
-    interaction: &mut MessageComponentInteraction,
+    interaction: &Interaction,
 ) -> crate::Result<()> {
-    // let typing = interaction.channel_id.start_typing(&ctx.http)?;
+    let Interaction::Component(component) = interaction else {
+        return Ok(());
+    };
 
-    match interaction.data.custom_id.as_str().try_into().ok() {
+    let typing = interaction.channel_id().start_typing(&ctx.http);
+
+    match component.data.custom_id.as_str().try_into().ok() {
         Some(Route::PlayFromSelectedMenu) => {
-            let parameter = controller::play::Parameter::from(&interaction.data);
+            let parameter = controller::play::Parameter::from(&component.data);
 
-            // select menu 메세지를 삭제함
-            interaction.message.delete(&ctx.http).await?;
+            component.message.delete(&ctx.http).await.ok();
 
-            controller::play(ctx, interaction.into(), parameter).await?;
+            controller::play(ctx, interaction, parameter).await?;
         }
 
         Some(Route::PlayFromClickedButton(url)) => {
-            let history_channel_id = ctx
-                .data
-                .read()
-                .await
-                .get::<Cfg>()
-                .unwrap()
-                .history_channel_id;
-
             let parameter = controller::play::Parameter::from(url);
 
-            let do_interact = interaction.message.channel_id != history_channel_id;
-            let interaction: Interaction = interaction.into();
+            controller::play(ctx, interaction, parameter).await?;
 
-            if do_interact {
-                // history채널이 아닐때만 play button 메세지를 삭제함
-                interaction.message().unwrap().delete(&ctx.http).await?;
-            } else {
-                // history채널일 경우 여기서부터는 더이상 상호작용을 하지 않을 것이기 때문에 끝냄
-                interaction.defer(&ctx.http).await?;
-            }
+            // let history_channel_id = ctx
+            //     .data
+            //     .read()
+            //     .await
+            //     .get::<Cfg>()
+            //     .unwrap()
+            //     .history_channel_id;
 
-            controller::play(ctx, interaction.do_interact(do_interact), parameter).await?;
+            // let do_interact = component.message.channel_id != history_channel_id;
+
+            // if do_interact {
+            //     // history채널이 아닐때만 이전에 생성된 play button 메세지를 삭제함
+            //     // interaction.message().unwrap().delete(&ctx.http).await.ok();
+            //     controller::play(ctx, interaction, parameter).await?;
+            // } else {
+            //     // history채널일 경우 여기서부터는 더이상 상호작용을 하지 않을 것이기 때문에 끝냄
+            //     // interaction.defer(&ctx.http).await?;
+            // }
         }
 
         _ => {}
     }
 
-    // typing.stop().unwrap_or_default();
+    typing.stop();
 
     Ok(())
 }

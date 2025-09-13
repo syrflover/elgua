@@ -1,4 +1,5 @@
 use serenity::{
+    all::EditMessage,
     model::id::{ChannelId, MessageId},
     prelude::*,
     utils::MessageBuilder,
@@ -34,13 +35,10 @@ pub async fn volume(
                 .await?
                 .unwrap();
 
-            if let Some(message_id) = history.message_id.map(MessageId) {
-                if let Ok(mut message) = ctx
-                    .http
-                    .get_message(history_channel_id.0, message_id.0)
-                    .await
+            if let Some(message_id) = history.message_id.map(MessageId::new) {
+                if let Ok(mut message) = ctx.http.get_message(history_channel_id, message_id).await
                 {
-                    let mut embed = message.embeds.get(0).cloned().unwrap();
+                    let mut embed = message.embeds.first().cloned().unwrap();
 
                     for field in &mut embed.fields {
                         if field.name == "소리 크기" {
@@ -49,7 +47,7 @@ pub async fn volume(
                     }
 
                     if let Err(err) = message
-                        .edit(&ctx.http, |message| message.set_embed(embed.into()))
+                        .edit(&ctx.http, EditMessage::new().embed(embed.into()))
                         .await
                     {
                         log::error!("{err}");
@@ -64,7 +62,7 @@ pub async fn volume(
 
             return Ok(MessageBuilder::new()
                 .push("소리 크기: ")
-                .push(volume_u8)
+                .push(volume_u8.to_string())
                 .build());
         }
     }

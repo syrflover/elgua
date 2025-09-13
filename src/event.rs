@@ -2,7 +2,8 @@ use std::ops::Deref;
 
 use chrono::Utc;
 use serenity::{
-    builder::{CreateActionRow, CreateComponents, CreateEmbed, CreateEmbedAuthor},
+    all::CreateMessage,
+    builder::{CreateEmbed, CreateEmbedAuthor},
     model::{id::UserId, prelude::MessageId},
     prelude::{Context, TypeMapKey},
 };
@@ -77,7 +78,7 @@ async fn handle(ctx: Context, event: Event) -> crate::Result<()> {
             if let Some(prev_message_id) = prev_message_id {
                 let _result_of_deleted_message = ctx
                     .http
-                    .delete_message(history_channel_id.0, prev_message_id.0)
+                    .delete_message(history_channel_id, prev_message_id, None)
                     .await;
             }
 
@@ -86,18 +87,18 @@ async fn handle(ctx: Context, event: Event) -> crate::Result<()> {
                 let user = user_id.to_user(&ctx.http).await?;
 
                 let author = {
-                    let mut x = CreateEmbedAuthor::default().name(&user.name).to_owned();
+                    let mut x = CreateEmbedAuthor::new(&user.name).to_owned();
                     if let Some(avatar_url) = user.avatar_url() {
-                        x.icon_url(avatar_url);
+                        x = x.icon_url(avatar_url);
                     }
                     x
                 };
 
                 let embed = CreateEmbed::default()
-                    .set_author(author)
+                    .author(author)
                     .title(audio_metadata.title.as_str())
                     .field("채널", &audio_metadata.uploaded_by, true)
-                    .field("소리 크기", (volume * 100.0) as u8, true)
+                    .field("소리 크기", (volume * 100.0).to_string(), true)
                     .url(&url)
                     .timestamp(now)
                     .image(audio_metadata.thumbnail_url)
@@ -105,17 +106,12 @@ async fn handle(ctx: Context, event: Event) -> crate::Result<()> {
                     .to_owned();
 
                 let play_button = create_play_button(Route::PlayFromClickedButton(url));
-                let action_row = CreateActionRow::default()
-                    .add_button(play_button)
-                    .to_owned();
-                let components = CreateComponents::default()
-                    .add_action_row(action_row)
-                    .to_owned();
 
                 history_channel_id
-                    .send_message(&ctx.http, |message| {
-                        message.set_embed(embed).set_components(components)
-                    })
+                    .send_message(
+                        &ctx.http,
+                        CreateMessage::new().embed(embed).button(play_button),
+                    )
                     .await
                     .ok()
             };
@@ -127,12 +123,12 @@ async fn handle(ctx: Context, event: Event) -> crate::Result<()> {
                 let _history_id = {
                     let history = History {
                         id: 0,
-                        message_id: message.map(|x| x.id.0),
+                        message_id: message.map(|x| x.id.get()),
                         title: audio_metadata.title.clone(),
                         channel: audio_metadata.uploaded_by,
                         kind: kind.into(),
                         uid,
-                        user_id: user_id.0,
+                        user_id: user_id.get(),
                         volume: (volume * 100.0) as u8,
                         created_at: now,
                     };

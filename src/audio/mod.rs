@@ -1,7 +1,6 @@
 pub mod cache;
 pub mod metadata;
 pub mod scdl;
-pub mod source;
 pub mod ytdl;
 
 pub use metadata::AudioMetadata;
@@ -22,7 +21,7 @@ pub const SCDL_CACHE: &str = "./cache/soundcloud";
 #[derive(Debug, thiserror::Error)]
 pub enum AudioSourceError {
     #[error("input: {0:?}")]
-    InputError(#[from] input::error::Error),
+    InputError(#[from] input::AudioStreamError),
 
     #[error("io: {0}")]
     IoError(#[from] io::Error),
@@ -140,8 +139,8 @@ impl AudioSource {
         }
     }
 
-    pub async fn get_source(&self, to_memory: bool) -> Result<Input, AudioSourceError> {
-        let cached_source = AudioCache::get_source(self, to_memory).await?;
+    pub async fn get_source(&self) -> Result<Input, AudioSourceError> {
+        let cached_source = AudioCache::get_source(self).await?;
 
         match cached_source {
             Some(source) => Ok(source),

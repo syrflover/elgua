@@ -1,8 +1,8 @@
-use serenity::prelude::Context;
+use serenity::{all::Interaction, prelude::Context};
 
-use crate::{interaction::Interaction, usecase};
+use crate::{interaction::InteractionExtension, usecase};
 
-pub async fn stop<'a>(ctx: &Context, interaction: Interaction<'a>) -> crate::Result<()> {
+pub async fn stop(ctx: &Context, interaction: &Interaction) -> crate::Result<()> {
     let r = usecase::stop(ctx).await?;
 
     interaction.send_message(&ctx.http, r).await?;

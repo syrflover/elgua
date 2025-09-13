@@ -1,8 +1,7 @@
 use serenity::{
-    builder::CreateActionRow,
-    model::prelude::interaction::{
-        application_command::{CommandDataOption, CommandDataOptionValue},
-        message_component::MessageComponentInteractionData,
+    all::{
+        CommandDataOption, CommandDataOptionValue, ComponentInteractionData,
+        ComponentInteractionDataKind, EditInteractionResponse, Interaction,
     },
     prelude::Context,
     utils::{EmbedMessageBuilding, MessageBuilder},
@@ -13,7 +12,7 @@ use crate::{
     cfg::Cfg,
     component::{create_numbering_select_menu, create_play_button},
     event::{Event, EventSender},
-    interaction::Interaction,
+    interaction::InteractionExtension,
     route::Route,
     usecase,
 };
@@ -41,7 +40,7 @@ impl From<&Vec<CommandDataOption>> for Parameter {
             let x = options
                 .iter()
                 .find(|x| x.name == "music")
-                .and_then(|x| x.resolved.as_ref())
+                .map(|x| &x.value)
                 .unwrap();
 
             match x {
@@ -56,7 +55,7 @@ impl From<&Vec<CommandDataOption>> for Parameter {
             let x = options
                 .iter()
                 .find(|x| x.name == "volume")
-                .and_then(|x| x.resolved.as_ref());
+                .map(|x| &x.value);
 
             match x {
                 Some(CommandDataOptionValue::Integer(v)) => Some(*v as f32 / 100.0),
@@ -71,7 +70,7 @@ impl From<&Vec<CommandDataOption>> for Parameter {
             let x = options
                 .iter()
                 .find(|x| x.name == "play_count")
-                .and_then(|x| x.resolved.as_ref());
+                .map(|x| &x.value);
 
             match x {
                 Some(CommandDataOptionValue::Integer(v)) => Some(*v as usize),
@@ -90,23 +89,42 @@ impl From<&Vec<CommandDataOption>> for Parameter {
     }
 }
 
-impl From<&MessageComponentInteractionData> for Parameter {
-    fn from(data: &MessageComponentInteractionData) -> Self {
-        let x = data.values.get(0).cloned().unwrap();
-
-        if let Ok((volume, play_count, keyword)) = serde_json::from_str(&x) {
-            Self {
-                keyword,
-                volume,
-                play_count,
+impl From<&ComponentInteractionData> for Parameter {
+    fn from(data: &ComponentInteractionData) -> Self {
+        match &data.kind {
+            ComponentInteractionDataKind::Button => {
+                if let Ok((volume, play_count, keyword)) = serde_json::from_str(&data.custom_id) {
+                    Self {
+                        keyword,
+                        volume,
+                        play_count,
+                    }
+                } else {
+                    Self {
+                        keyword: data.custom_id.clone(),
+                        volume: None,
+                        play_count: None,
+                    }
+                }
             }
-        } else {
-            Self {
-                keyword: x,
-                volume: None,
-                play_count: None,
+            ComponentInteractionDataKind::StringSelect { values } => {
+                log::debug!("selected values: {:#?}", values);
+
+                let (volume, play_count, url): (Option<f32>, Option<usize>, String) =
+                    serde_json::from_str(values.first().unwrap()).unwrap();
+
+                Self {
+                    keyword: url,
+                    volume,
+                    play_count,
+                }
+            }
+            _ => {
+                log::error!("Unexpected interaction data kind: {:?}", data.kind);
+                unreachable!()
             }
         }
+        // let x = data.values.get(0).cloned().unwrap();
     }
 }
 
@@ -139,9 +157,9 @@ impl From<ContentKind> for usecase::play::PlayableKind {
     }
 }
 
-pub async fn play<'a>(
+pub async fn play(
     ctx: &Context,
-    interaction: Interaction<'a>,
+    interaction: &Interaction,
     parameter: Parameter,
 ) -> crate::Result<()> {
     // let (cfg, event_tx) = {
@@ -164,7 +182,7 @@ pub async fn play<'a>(
     let content_kind = ContentKind::new(&keyword);
     let user_id = interaction.user().id;
 
-    log::info!("{content_kind:?}");
+    log::info!("content_kind={content_kind:?}");
 
     match content_kind {
         ContentKind::YouTubeUrl | ContentKind::SoundCloudUrl => {
@@ -174,35 +192,46 @@ pub async fn play<'a>(
                 keyword
             };
 
-            interaction.send_message(&ctx.http, "재생하는 중").await?;
+            interaction
+                .send_message(
+                    &ctx.http,
+                    MessageBuilder::new()
+                        .push("재생하는 중 : ")
+                        .push(&url)
+                        .build(),
+                )
+                .await?;
 
             let parameter =
                 usecase::play::Parameter::new(content_kind.into(), url.clone(), volume, play_count);
             let (audio_metadata, volume, prev_message_id) =
                 usecase::play(ctx, cfg.guild_id, cfg.voice_channel_id, parameter).await?;
 
-            interaction
-                .edit_original_interaction_response(&ctx.http, |edit| {
-                    let play_button = create_play_button(Route::PlayFromClickedButton(
-                        audio_metadata.url.clone(),
-                    ));
+            let do_interact = interaction.channel_id() != cfg.history_channel_id;
 
-                    let action_row = CreateActionRow::default()
-                        .add_button(play_button)
-                        .to_owned();
+            if do_interact {
+                interaction
+                    .edit_response(&ctx.http, {
+                        let play_info_str = MessageBuilder::new()
+                            .push_named_link(&audio_metadata.title, &audio_metadata.url)
+                            .push("\n소리 크기: ")
+                            .push((volume * 100.0).to_string())
+                            .push("\n재생 횟수: ")
+                            .push(play_count.unwrap_or(1).to_string())
+                            .build();
 
-                    let x = MessageBuilder::new()
-                        .push_named_link(&audio_metadata.title, &audio_metadata.url)
-                        .push("\n소리 크기: ")
-                        .push((volume * 100.0) as u8)
-                        .push("\n재생 횟수: ")
-                        .push(play_count.unwrap_or(1))
-                        .build();
+                        let play_button = create_play_button(Route::PlayFromClickedButton(
+                            audio_metadata.url.clone(),
+                        ));
 
-                    edit.content(x)
-                        .components(|components| components.set_action_row(action_row))
-                })
-                .await?;
+                        EditInteractionResponse::new()
+                            .content(play_info_str)
+                            .button(play_button)
+                    })
+                    .await?;
+            } else {
+                interaction.delete_response(&ctx.http).await.ok();
+            }
 
             let event = Event::Play(audio_metadata.clone(), volume, user_id, prev_message_id);
             if let Err(err) = event_tx.send((ctx.clone(), event)).await {
@@ -211,13 +240,20 @@ pub async fn play<'a>(
         }
 
         ContentKind::YouTubeSearchKeyword => {
-            interaction.send_message(&ctx.http, "검색하는 중").await?;
+            interaction
+                .send_message(
+                    &ctx.http,
+                    MessageBuilder::new()
+                        .push("검색하는 중 : ")
+                        .push(&keyword)
+                        .build(),
+                )
+                .await?;
 
             let searched_videos = ytdl::search(&cfg.youtube_api_key, &keyword).await?;
 
             interaction
-                .edit_original_interaction_response(&ctx.http, |edit| {
-                    // title, channel_name, url
+                .edit_response(&ctx.http, {
                     let select_menu_items = searched_videos.into_iter().map(|x| {
                         (
                             x.title,
@@ -226,24 +262,18 @@ pub async fn play<'a>(
                         )
                     });
 
-                    let select_menu = create_numbering_select_menu(
-                        Route::PlayFromSelectedMenu,
-                        "재생할 음악을 선택해 주세요",
-                        select_menu_items,
-                    );
-
-                    /* let button = CreateButton::default()
-                    .custom_id("play-cancel-0")
-                    .label("취소")
-                    .style(ButtonStyle::Secondary)
-                    .to_owned(); */
-
-                    let action_row = CreateActionRow::default()
-                        .add_select_menu(select_menu)
-                        .to_owned();
-
-                    edit.content(keyword)
-                        .components(|components| components.add_action_row(action_row))
+                    EditInteractionResponse::new()
+                        .content(
+                            MessageBuilder::new()
+                                .push("검색 완료 : ")
+                                .push(&keyword)
+                                .build(),
+                        )
+                        .select_menu(create_numbering_select_menu(
+                            Route::PlayFromSelectedMenu,
+                            "재생할 음악을 선택해 주세요",
+                            select_menu_items,
+                        ))
                 })
                 .await?;
         }

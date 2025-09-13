@@ -5,8 +5,8 @@ use serenity::{
     prelude::{Context, Mutex},
 };
 use songbird::{
-    error::JoinError,
-    tracks::{PlayMode, TrackError},
+    error::{ControlError, JoinError},
+    tracks::PlayMode,
     Call,
 };
 
@@ -24,10 +24,7 @@ async fn get_voice_handler(
     channel_id: ChannelId,
 ) -> Result<Arc<Mutex<Call>>, JoinError> {
     let manager = songbird::get(ctx).await.unwrap().clone();
-
-    let (handler_lock, join_result) = manager.join(guild_id, channel_id).await;
-
-    join_result.map(|_| handler_lock)
+    manager.join(guild_id, channel_id).await
 }
 
 pub struct Parameter {
@@ -117,7 +114,7 @@ pub async fn play(
             None => match &history {
                 Some(history) => (
                     history.volume as f32 / 100.0,
-                    history.message_id.map(MessageId),
+                    history.message_id.map(MessageId::new),
                 ),
                 None => (0.05, None),
             },
@@ -175,11 +172,13 @@ pub async fn play(
         }
     }
 
-    let mut source = audio_source.get_source(is_repeat).await?;
+    let mut source = audio_source.get_source().await?;
+
+    log::debug!("playable: {}", source.is_playable());
 
     handler.stop();
 
-    let mut track = handler.play_only_source(source);
+    let mut track = handler.play_only_input(source);
 
     let mut try_count = 0;
 
@@ -204,7 +203,7 @@ pub async fn play(
             .into_iter()
             .collect::<Result<(), _>>();
 
-        if let Err(TrackError::Finished) = play_result {
+        if let Err(ControlError::Finished) = play_result {
             play_state = PlayMode::End;
         } else {
             // sleep(Duration::from_millis(100)).await;
@@ -220,8 +219,9 @@ pub async fn play(
             PlayMode::Play => break,
 
             PlayMode::End => {
-                source = audio_source.get_source(is_repeat).await?;
-                track = handler.play_only_source(source);
+                // source = audio_source.get_source(is_repeat).await?;
+                source = audio_source.get_source().await?;
+                track = handler.play_only_input(source);
             }
 
             _ => {}

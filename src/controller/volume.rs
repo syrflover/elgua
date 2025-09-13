@@ -1,9 +1,9 @@
 use serenity::{
-    model::prelude::interaction::application_command::{CommandDataOption, CommandDataOptionValue},
+    all::{CommandDataOption, CommandDataOptionValue, Interaction},
     prelude::Context,
 };
 
-use crate::{cfg::Cfg, interaction::Interaction, usecase};
+use crate::{cfg::Cfg, interaction::InteractionExtension, usecase};
 
 // pub struct Parameter {
 //     volume: f32,
@@ -15,7 +15,7 @@ pub struct Parameter(f32);
 impl From<&Vec<CommandDataOption>> for Parameter {
     fn from(options: &Vec<CommandDataOption>) -> Self {
         let volume = {
-            let x = options.get(0).unwrap().resolved.as_ref().unwrap();
+            let x = &options.first().as_ref().unwrap().value;
 
             match x {
                 CommandDataOptionValue::Integer(volume) => *volume as f32 / 100.0,
@@ -27,9 +27,9 @@ impl From<&Vec<CommandDataOption>> for Parameter {
     }
 }
 
-pub async fn volume<'a>(
+pub async fn volume(
     ctx: &Context,
-    interaction: Interaction<'a>,
+    interaction: &Interaction,
     Parameter(volume): Parameter,
 ) -> crate::Result<()> {
     let cfg = {

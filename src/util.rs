@@ -54,9 +54,7 @@ pub mod time {
         // PT#H#M#S
         // P#DT#H#M#S
 
-        let Some(x) = x.strip_prefix("PT").or(x.strip_prefix('P')) else {
-            return None;
-        };
+        let x = x.strip_prefix("PT").or(x.strip_prefix('P'))?;
 
         fn pos(x: Option<(u64, usize)>) -> usize {
             match x {

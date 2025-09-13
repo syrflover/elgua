@@ -1,6 +1,6 @@
 use elgua::{cfg::Cfg, event, event::EventSender, handler::Handler, store::Store};
 use log::LevelFilter;
-use serenity::{framework::StandardFramework, prelude::*, Client};
+use serenity::{prelude::*, Client};
 use simple_logger::SimpleLogger;
 use songbird::SerenityInit;
 use tokio::{
@@ -31,13 +31,10 @@ async fn main() {
     let store = Store::connect(&cfg).await;
     let (event_tx, event_rx) = mpsc::channel(12);
 
-    let framework = StandardFramework::new();
-
     let intents = GatewayIntents::GUILD_VOICE_STATES;
 
     let mut client = Client::builder(&cfg.token, intents)
         .event_handler(Handler)
-        .framework(framework)
         .register_songbird()
         .await
         .unwrap();
