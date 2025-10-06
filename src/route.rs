@@ -4,6 +4,7 @@ use serenity::all::{CommandDataOptionValue, Interaction};
 use serenity::prelude::Context;
 
 use crate::audio::scdl;
+use crate::cfg::Cfg;
 use crate::interaction::InteractionExtension;
 use crate::store::{CfgKey, Store};
 
@@ -15,6 +16,7 @@ mod route_constant {
     pub const VOLUME: &str = "volume";
     pub const STOP: &str = "stop";
     pub const TRACK: &str = "track";
+    pub const SEARCH: &str = "search";
     pub const PLAY_FROM_SELECTED_MENU: &str = "play-from-selected-menu";
     pub const PLAY_FROM_CLICKED_BUTTON: &str = "play-from-clicked-button#";
 
@@ -30,6 +32,7 @@ pub enum Route {
     Volume,
     Stop,
     Track,
+    Search,
     PlayFromSelectedMenu,
     PlayFromClickedButton(String),
 
@@ -50,6 +53,8 @@ impl From<Route> for String {
             Stop => route_constant::STOP,
 
             Track => route_constant::TRACK,
+
+            Search => route_constant::SEARCH,
 
             PlayFromSelectedMenu => route_constant::PLAY_FROM_SELECTED_MENU,
 
@@ -88,6 +93,8 @@ impl TryFrom<&str> for Route {
 
             route_constant::TRACK => Track,
 
+            route_constant::SEARCH => Search,
+
             route_constant::PLAY_FROM_SELECTED_MENU => PlayFromSelectedMenu,
 
             route_constant::UPDATE_SC_API_KEY => UpdateScApiKey,
@@ -120,6 +127,15 @@ pub async fn route_application_command(
         return Ok(());
     };
 
+    let history_channel_id = ctx
+        .data
+        .read()
+        .await
+        .get::<Cfg>()
+        .unwrap()
+        .history_channel_id;
+    let do_interact = command.channel_id != history_channel_id;
+
     let typing = interaction.channel_id().start_typing(&ctx.http);
     let options = &command.data.options;
 
@@ -131,7 +147,7 @@ pub async fn route_application_command(
         Some(Route::Play) => {
             let parameter = controller::play::Parameter::from(options);
 
-            controller::play(ctx, interaction, parameter).await?;
+            controller::play(ctx, interaction, parameter, do_interact).await?;
 
             // interaction.defer(&ctx.http).await?;
         }
@@ -148,6 +164,25 @@ pub async fn route_application_command(
 
         Some(Route::Track) => {
             controller::track(ctx, interaction).await?;
+        }
+
+        Some(Route::Search) => {
+            // TODO:
+            // 일단 검색엔진 뭐 쓸지 생각좀 하자
+            // 1. https://tantivy-search.github.io/examples/basic_search.html
+            //
+            //
+            // 그리고 어떻게 구현할지도 생각하자
+            //
+            // 버튼으로 페이지 구현 (수동으로 페이지 지정? ㄴㄴ하지말자 그냥 버튼만 ㄱㄱ)
+            //
+            //
+            // 검색결과는 어떻게 보여줄까
+            //
+            // [제목링크] [재생 버튼]
+            // 이런식으로 하면 될 듯?
+            //
+            // 커스텀 검색어 지정할 수 있도록
         }
 
         Some(Route::UpdateScApiKey) => {
@@ -202,31 +237,36 @@ pub async fn route_message_component(
         return Ok(());
     };
 
+    let history_channel_id = ctx
+        .data
+        .read()
+        .await
+        .get::<Cfg>()
+        .unwrap()
+        .history_channel_id;
+    let do_interact = component.message.channel_id != history_channel_id;
+
     let typing = interaction.channel_id().start_typing(&ctx.http);
 
     match component.data.custom_id.as_str().try_into().ok() {
         Some(Route::PlayFromSelectedMenu) => {
             let parameter = controller::play::Parameter::from(&component.data);
 
+            // SelectedMenu는 무조건 지워야함. history 채널 여부 상관 없음
             component.message.delete(&ctx.http).await.ok();
 
-            controller::play(ctx, interaction, parameter).await?;
+            controller::play(ctx, interaction, parameter, do_interact).await?;
         }
 
         Some(Route::PlayFromClickedButton(url)) => {
             let parameter = controller::play::Parameter::from(url);
 
-            controller::play(ctx, interaction, parameter).await?;
+            // history 채널이 아니면 이전 메세지 삭제함
+            if do_interact {
+                interaction.message().unwrap().delete(&ctx.http).await.ok();
+            }
 
-            // let history_channel_id = ctx
-            //     .data
-            //     .read()
-            //     .await
-            //     .get::<Cfg>()
-            //     .unwrap()
-            //     .history_channel_id;
-
-            // let do_interact = component.message.channel_id != history_channel_id;
+            controller::play(ctx, interaction, parameter, do_interact).await?;
 
             // if do_interact {
             //     // history채널이 아닐때만 이전에 생성된 play button 메세지를 삭제함

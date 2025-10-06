@@ -18,12 +18,12 @@ impl AudioCache {
         Path::new(&p).try_exists()
     }
 
-    pub async fn get_source(audio_source: &AudioSource) -> Result<Option<Input>, AudioSourceError> {
+    pub async fn get_source(audio_source: &AudioSource) -> Result<Input, AudioSourceError> {
         let file_path = match audio_source {
             AudioSource::YouTube(x) => format!("{YTDL_CACHE}/{}", x.id),
             AudioSource::SoundCloud(x) => format!("{SCDL_CACHE}/{}", x.id),
         };
 
-        Ok(Some(Input::from(File::new(file_path))))
+        Ok(Input::from(File::new(file_path)))
     }
 }

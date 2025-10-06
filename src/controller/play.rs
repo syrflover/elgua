@@ -161,6 +161,7 @@ pub async fn play(
     ctx: &Context,
     interaction: &Interaction,
     parameter: Parameter,
+    do_interact: bool,
 ) -> crate::Result<()> {
     // let (cfg, event_tx) = {
     let (cfg, event_tx) = {
@@ -192,22 +193,22 @@ pub async fn play(
                 keyword
             };
 
-            interaction
-                .send_message(
-                    &ctx.http,
-                    MessageBuilder::new()
-                        .push("재생하는 중 : ")
-                        .push(&url)
-                        .build(),
-                )
-                .await?;
+            if do_interact {
+                interaction
+                    .send_message(
+                        &ctx.http,
+                        MessageBuilder::new()
+                            .push("재생하는 중 : ")
+                            .push(&url)
+                            .build(),
+                    )
+                    .await?;
+            }
 
             let parameter =
                 usecase::play::Parameter::new(content_kind.into(), url.clone(), volume, play_count);
             let (audio_metadata, volume, prev_message_id) =
                 usecase::play(ctx, cfg.guild_id, cfg.voice_channel_id, parameter).await?;
-
-            let do_interact = interaction.channel_id() != cfg.history_channel_id;
 
             if do_interact {
                 interaction
@@ -230,7 +231,7 @@ pub async fn play(
                     })
                     .await?;
             } else {
-                interaction.delete_response(&ctx.http).await.ok();
+                // interaction.delete_response(&ctx.http).await.ok();
             }
 
             let event = Event::Play(audio_metadata.clone(), volume, user_id, prev_message_id);

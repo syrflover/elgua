@@ -140,14 +140,15 @@ impl AudioSource {
     }
 
     pub async fn get_source(&self) -> Result<Input, AudioSourceError> {
-        let cached_source = AudioCache::get_source(self).await?;
+        let metadata = self.metadata();
 
-        match cached_source {
-            Some(source) => Ok(source),
-            None => Err(AudioSourceError::IoError(io::Error::new(
+        if AudioCache::exists(metadata.kind(), &metadata.id)? {
+            Ok(AudioCache::get_source(self).await?)
+        } else {
+            Err(AudioSourceError::IoError(io::Error::new(
                 io::ErrorKind::NotFound,
-                "캐싱된 영상을 찾을 수 없습니다",
-            ))),
+                "캐시된 영상을 찾을 수 없습니다",
+            )))
         }
 
         // match self {
