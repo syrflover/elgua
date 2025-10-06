@@ -1,4 +1,4 @@
-MODE=$1
+# MODE=$1
 
 err="$(kubectl create namespace bots 2>&1)"
 if ! (grep -q "AlreadyExists" <<< "$err"); then
@@ -6,25 +6,27 @@ if ! (grep -q "AlreadyExists" <<< "$err"); then
     exit 1
 fi
 
-if [ "$1" = "prod" ]; then
-    BIN="target/x86_64-unknown-linux-musl/release/elgua"
+# if [ "$1" = "prod" ]; then
+#     BIN="target/x86_64-unknown-linux-musl/release/elgua"
 
-    cargo build --release --target=x86_64-unknown-linux-musl
-else
-    BIN="target/x86_64-unknown-linux-musl/debug/elgua"
+#     CMAKE_x86_64_unknown_linux_gnu=scripts/opus-cmake \
+#     cargo build --release --target=x86_64-unknown-linux-musl
+# else
+#     BIN="target/x86_64-unknown-linux-musl/debug/elgua"
 
-    cargo build --target=x86_64-unknown-linux-musl
-fi
+#     CMAKE_x86_64_unknown_linux_gnu=scripts/opus-cmake \
+#     cargo build --target=x86_64-unknown-linux-musl
+# fi
 
-if [ $? -ne 0 ]; then
-    exit 1
-fi
+# if [ $? -ne 0 ]; then
+#     exit 1
+# fi
 
-chmod +x $BIN
+# chmod +x $BIN
 
 docker build \
+    --progress auto \
     --platform linux/amd64 \
-    --build-arg BINARY_FILE="$BIN" \
     --build-arg CFG_FILE="cfg.json" \
     --tag "192.168.1.21:32000/elgua:latest" \
     --load .

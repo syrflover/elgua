@@ -1,8 +1,9 @@
 target/
-!target/x86_64-unknown-linux-musl/debug/elgua
-!target/x86_64-unknown-linux-musl/release/elgua
-src/
-migration/
-bin/
+#!target/x86_64-unknown-linux-musl/debug/elgua
+#!target/x86_64-unknown-linux-musl/release/elgua
+#src/
+#migration/
+#bin/
 .vscode/
 ./yt-dlp
+Cargo.lock
