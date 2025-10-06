@@ -20,7 +20,7 @@ pub struct SearchResult {
     // pub next_page_token: Option<String>,
     // pub region_code: String,
     // pub page_info: PageInfo,
-    pub items: Vec<SearchItem>,
+    pub items: Option<Vec<SearchItem>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -31,7 +31,7 @@ pub struct VideoResult {
     // pub next_page_token: Option<String>,
     // pub region_code: String,
     // pub page_info: PageInfo,
-    pub items: Vec<VideoItem>,
+    pub items: Option<Vec<VideoItem>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -39,31 +39,31 @@ pub struct VideoResult {
 pub struct SearchItem {
     // pub kind: String,
     // pub etag: String,
-    pub id: SearchItemId,
-    pub snippet: Snippet,
+    pub id: Option<SearchItemId>,
+    pub snippet: Option<Snippet>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VideoItem {
-    pub id: String,
-    pub snippet: Snippet,
-    pub content_details: ContentDetail,
+    pub id: Option<String>,
+    pub snippet: Option<Snippet>,
+    pub content_details: Option<ContentDetail>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchItemId {
     // pub kind: String,
-    pub video_id: String,
+    pub video_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Thumbnail {
-    pub url: String,
-    pub width: usize,
-    pub height: usize,
+    pub url: Option<String>,
+    pub width: Option<usize>,
+    pub height: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -74,18 +74,18 @@ pub struct ContentDetail {
     /// PT#M#S, PT#H#M#S, P#DT#H#M#S
     ///
     /// .e.g, P1DT23H11M1S
-    pub duration: String,
+    pub duration: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Snippet {
-    pub published_at: String,
-    pub channel_id: String,
-    pub title: String,
-    pub description: String,
-    pub thumbnails: HashMap<String, Thumbnail>,
-    pub channel_title: String,
+    pub published_at: Option<String>,
+    pub channel_id: Option<String>,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub thumbnails: Option<HashMap<String, Thumbnail>>,
+    pub channel_title: Option<String>,
     // pub live_broadcast_content: String,
     // pub publish_time: String,
 }
@@ -171,10 +171,19 @@ pub async fn get(
         }
     };
 
-    a.items.into_iter().next().map(Into::into).ok_or(Error {
-        code: 404,
-        message: "영상을 찾을 수 없습니다".to_owned(),
-    })
+    let item = a.items.unwrap_or_default().into_iter().next();
+
+    match item.map(|item| AudioMetadata::try_from(item)) {
+        Some(Ok(r)) => Ok(r),
+        Some(Err(_)) => Err(Error {
+            code: 404,
+            message: "유튜브에서 제대로 된 정보를 주지 않았습니다".to_owned(),
+        }),
+        None => Err(Error {
+            code: 404,
+            message: "영상을 찾을 수 없습니다".to_owned(),
+        }),
+    }
 }
 
 #[cfg(test)]
@@ -194,6 +203,8 @@ pub async fn search(
     let params = [
         ("part", "snippet"),
         ("type", "video"),
+        // ("maxResults", "5"),
+        ("safeSearch", "none"),
         ("key", youtube_api_key.as_ref()),
         ("q", keyword.as_ref()),
     ];
@@ -221,7 +232,21 @@ pub async fn search(
         }
     };
 
-    Ok(a.items.into_iter().map(Into::into).collect())
+    let search_results = a
+        .items
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|item| AudioMetadata::try_from(item).ok())
+        .collect::<Vec<_>>();
+
+    if search_results.is_empty() {
+        return Err(Error {
+            code: 404,
+            message: "검색된 결과가 없습니다".to_owned(),
+        });
+    }
+
+    Ok(search_results)
 
     // println!("{a:#?}");
 

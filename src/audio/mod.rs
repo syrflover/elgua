@@ -120,7 +120,7 @@ impl AudioSource {
             id: uid,
             title,
             url,
-            thumbnail_url: "".to_owned(),
+            thumbnail_url: None,
             uploaded_by: channel,
             duration: None,
             _kind: kind,

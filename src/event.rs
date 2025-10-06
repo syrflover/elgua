@@ -94,16 +94,18 @@ async fn handle(ctx: Context, event: Event) -> crate::Result<()> {
                     x
                 };
 
-                let embed = CreateEmbed::default()
+                let mut embed = CreateEmbed::default()
                     .author(author)
                     .title(audio_metadata.title.as_str())
                     .field("채널", &audio_metadata.uploaded_by, true)
                     .field("소리 크기", (volume * 100.0).to_string(), true)
                     .url(&url)
                     .timestamp(now)
-                    .image(audio_metadata.thumbnail_url)
-                    .color(color)
-                    .to_owned();
+                    .color(color);
+
+                if let Some(thumbnail_url) = audio_metadata.thumbnail_url {
+                    embed = embed.image(thumbnail_url);
+                }
 
                 let play_button = create_play_button(Route::PlayFromClickedButton(url));
 
